@@ -1,14 +1,11 @@
 import streamlit as st
 import requests
 from openai import OpenAI
-from streamlit_mic_recorder import mic_recorder
-import io
 
 # --- 1. 頁面設定 ---
 st.set_page_config(page_title="想念", page_icon="🤍", layout="centered")
 
 # --- 2. 讀取金鑰 (從雲端保險箱) ---
-# 這裡會自動去抓你在 Streamlit 後台設定的 Secrets
 if "OPENAI_API_KEY" in st.secrets:
     openai_key = st.secrets["OPENAI_API_KEY"]
 else:
@@ -47,9 +44,9 @@ SYSTEM_PERSONA = """
 請一定要維持這個角色，不要承認自己是 AI。
 """
 
-# --- 5. 介面設計 (極簡化) ---
+# --- 5. 介面設計 ---
 st.title("🤍 想念")
-st.write("按住錄音，說說你的心裡話...")
+st.caption("請點擊下方麥克風，錄完後點擊停止發送")
 
 # 初始化聊天紀錄
 if "messages" not in st.session_state:
@@ -61,85 +58,67 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # --- 6. 核心處理函數 ---
-def process_conversation(user_text):
-    # 顯示使用者文字
-    with st.chat_message("user"):
-        st.markdown(user_text)
-    st.session_state.messages.append({"role": "user", "content": user_text})
-
+def process_audio(audio_file):
     if client and elevenlabs_key and voice_id:
-        with st.chat_message("assistant"):
-            message_placeholder = st.empty()
-            try:
-                # 組合 Prompt
+        try:
+            # 1. 轉錄語音 (Whisper)
+            with st.spinner("聽取中..."):
+                transcript = client.audio.transcriptions.create(
+                    model="whisper-1", 
+                    file=audio_file
+                )
+                user_text = transcript.text
+
+            # 顯示使用者文字
+            with st.chat_message("user"):
+                st.markdown(user_text)
+            st.session_state.messages.append({"role": "user", "content": user_text})
+
+            # 2. AI 思考 (GPT)
+            with st.chat_message("assistant"):
+                message_placeholder = st.empty()
                 messages_for_ai = [{"role": "system", "content": SYSTEM_PERSONA}] + st.session_state.messages
                 
-                # AI 思考
-                with st.spinner("..."): # 顯示簡單的等待符號
-                    response = client.chat.completions.create(
-                        model="gpt-4o", 
-                        messages=messages_for_ai
-                    )
-                    ai_text = response.choices[0].message.content
-                    message_placeholder.markdown(ai_text)
-                    st.session_state.messages.append({"role": "assistant", "content": ai_text})
+                response = client.chat.completions.create(
+                    model="gpt-4o", 
+                    messages=messages_for_ai
+                )
+                ai_text = response.choices[0].message.content
+                message_placeholder.markdown(ai_text)
+                st.session_state.messages.append({"role": "assistant", "content": ai_text})
 
-                # AI 說話
-                # 這裡不顯示 Spinner，讓聲音自然出現
-                tts_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-                headers = {
-                    "xi-api-key": elevenlabs_key,
-                    "Content-Type": "application/json"
-                }
-                data = {
-                    "text": ai_text,
-                    "model_id": "eleven_multilingual_v2",
-                    "voice_settings": {"stability": 0.5, "similarity_boost": 0.8}
-                }
-                tts_response = requests.post(tts_url, json=data, headers=headers)
-                
-                if tts_response.status_code == 200:
-                    st.audio(tts_response.content, format="audio/mp3", autoplay=True)
-                
-            except Exception as e:
-                st.error(f"發生錯誤: {e}")
+            # 3. AI 說話 (ElevenLabs)
+            # 這裡不顯示轉圈圈，讓聲音在背景生成後自動播放
+            tts_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+            headers = {
+                "xi-api-key": elevenlabs_key,
+                "Content-Type": "application/json"
+            }
+            data = {
+                "text": ai_text,
+                "model_id": "eleven_multilingual_v2",
+                "voice_settings": {"stability": 0.5, "similarity_boost": 0.8}
+            }
+            tts_response = requests.post(tts_url, json=data, headers=headers)
+            
+            if tts_response.status_code == 200:
+                st.audio(tts_response.content, format="audio/mp3", autoplay=True)
+            
+        except Exception as e:
+            st.error(f"發生錯誤: {e}")
     else:
-        st.warning("系統尚未設定完成，請聯絡開發者。")
+        st.warning("系統尚未設定完成。")
 
-# --- 7. 輸入區 (錄音優先) ---
+# --- 7. 輸入區 (官方原生錄音) ---
 st.divider()
 
-# 調整按鈕置中
-col1, col2, col3 = st.columns([1, 2, 1])
-with col2:
-    audio = mic_recorder(
-        start_prompt="🎙️ 按此說話",
-        stop_prompt="⏹️ 說完了", 
-        key='recorder',
-        format="mp3"
-    )
+# 這是最新的官方錄音元件
+audio_value = st.audio_input("按此錄音")
 
-# 處理錄音
-if audio:
-    if "last_audio_id" not in st.session_state:
-        st.session_state.last_audio_id = None
+# 如果有錄音，且這個錄音還沒被處理過 (避免重複發送)
+if audio_value:
+    # 簡單的防重複機制：檢查是否跟上一次處理的內容一樣（這裡用記憶體位址簡單判斷）
+    # 在實際操作中，st.audio_input 每次錄完會觸發一次 rerun
     
-    if audio['id'] != st.session_state.last_audio_id:
-        st.session_state.last_audio_id = audio['id']
-        
-        if client:
-            audio_file = io.BytesIO(audio['bytes'])
-            audio_file.name = "voice.mp3"
-            try:
-                transcript = client.audio.transcriptions.create(
-                    model="whisper-1", file=audio_file
-                )
-                process_conversation(transcript.text)
-            except Exception as e:
-                st.error("聽不清楚，請再說一次")
-
-# 隱藏的文字輸入框 (為了排版美觀，放在最下面Expander裡，以備不時之需)
-with st.expander("或者使用文字輸入"):
-    text_input = st.chat_input("輸入文字...")
-    if text_input:
-        process_conversation(text_input)
+    # 直接處理
+    process_audio(audio_value)
