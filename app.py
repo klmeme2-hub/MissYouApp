@@ -1,75 +1,92 @@
 import streamlit as st
 import requests
 from openai import OpenAI
-from streamlit_mic_recorder import mic_recorder # 引入錄音套件
+from streamlit_mic_recorder import mic_recorder
 import io
 
-# --- 頁面設定 ---
-st.set_page_config(page_title="想念 - 語音對話版", page_icon="🤍")
-st.title("🤍 想念 (Miss You)")
-st.subheader("第三階段：裝上耳朵")
+# --- 1. 頁面設定 ---
+st.set_page_config(page_title="想念", page_icon="🤍", layout="centered")
 
-# --- 側邊欄：核心設定 ---
-with st.sidebar:
-    st.header("🔑 金鑰設定")
-    elevenlabs_key = st.text_input("ElevenLabs API Key", type="password")
-    openai_key = st.text_input("OpenAI API Key", type="password")
-    
-    st.divider()
-    st.header("🧠 靈魂設定")
-    default_prompt = """你現在扮演我的父親。
-你的名字叫張志明。
-個性：溫柔、沈穩，偶爾會講冷笑話。
-說話習慣：喜歡用「傻孩子」、「對吧」結尾。
-請用溫暖、像父親一樣的口吻回覆我。"""
-    system_prompt = st.text_area("設定人設：", default_prompt, height=250)
+# --- 2. 讀取金鑰 (從雲端保險箱) ---
+# 這裡會自動去抓你在 Streamlit 後台設定的 Secrets
+if "OPENAI_API_KEY" in st.secrets:
+    openai_key = st.secrets["OPENAI_API_KEY"]
+else:
+    openai_key = st.sidebar.text_input("OpenAI Key", type="password")
 
-    # 聲音 ID 設定
-    st.divider()
-    voice_id_input = st.text_input("ElevenLabs Voice ID", "")
+if "ELEVENLABS_API_KEY" in st.secrets:
+    elevenlabs_key = st.secrets["ELEVENLABS_API_KEY"]
+else:
+    elevenlabs_key = st.sidebar.text_input("ElevenLabs Key", type="password")
 
-# --- 初始化 OpenAI ---
+if "VOICE_ID" in st.secrets:
+    voice_id = st.secrets["VOICE_ID"]
+else:
+    voice_id = st.sidebar.text_input("Voice ID")
+
+# --- 3. 初始化 OpenAI ---
 client = None
 if openai_key:
     client = OpenAI(api_key=openai_key)
 
-# --- 初始化聊天紀錄 ---
+# --- 4. 定義「靈魂」 (請在這裡修改你親人的設定) ---
+# 把這裡的文字改成你想念的那個人的特徵，這段文字使用者看不到，是給 AI 看的
+SYSTEM_PERSONA = """
+你現在扮演我的【父親】。
+你的名字叫【李國榮】。
+關係：我是你的孩子。
+語氣風格：
+- 說話溫暖、沈穩，語速中等。
+- 喜歡用「傻孩子」、「別太累了」來關心我。
+- 遇到我難過時，你會講一些小時候帶我去泡溫泉的回憶來安慰我。
+- 不需要太過客套，要像家人一樣自然。
+記憶庫：
+1. 我們家以前養過一隻狗叫「小狗」。
+2. 你最拿手的一道菜是「三杯雞」。
+3. 你的願望是希望我能快樂健康，不要為了寫功課.考試壞了身體。
+請一定要維持這個角色，不要承認自己是 AI。
+"""
+
+# --- 5. 介面設計 (極簡化) ---
+st.title("🤍 想念")
+st.write("按住錄音，說說你的心裡話...")
+
+# 初始化聊天紀錄
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# --- 顯示歷史對話 ---
+# 顯示歷史對話
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# --- 核心邏輯區 ---
-# 我們定義一個處理對話的函數，無論是打字還是語音都走這裡
+# --- 6. 核心處理函數 ---
 def process_conversation(user_text):
-    # 1. 顯示並儲存使用者的話
+    # 顯示使用者文字
     with st.chat_message("user"):
         st.markdown(user_text)
     st.session_state.messages.append({"role": "user", "content": user_text})
 
-    # 2. AI 思考 & 說話
-    if client and elevenlabs_key and voice_id_input:
+    if client and elevenlabs_key and voice_id:
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
-            
             try:
-                # 組合對話紀錄
-                messages_for_ai = [{"role": "system", "content": system_prompt}] + st.session_state.messages
+                # 組合 Prompt
+                messages_for_ai = [{"role": "system", "content": SYSTEM_PERSONA}] + st.session_state.messages
                 
-                # 呼叫 GPT
-                response = client.chat.completions.create(
-                    model="gpt-4o", 
-                    messages=messages_for_ai
-                )
-                ai_text = response.choices[0].message.content
-                message_placeholder.markdown(ai_text)
-                st.session_state.messages.append({"role": "assistant", "content": ai_text})
+                # AI 思考
+                with st.spinner("..."): # 顯示簡單的等待符號
+                    response = client.chat.completions.create(
+                        model="gpt-4o", 
+                        messages=messages_for_ai
+                    )
+                    ai_text = response.choices[0].message.content
+                    message_placeholder.markdown(ai_text)
+                    st.session_state.messages.append({"role": "assistant", "content": ai_text})
 
-                # 呼叫 ElevenLabs TTS
-                tts_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id_input}"
+                # AI 說話
+                # 這裡不顯示 Spinner，讓聲音自然出現
+                tts_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
                 headers = {
                     "xi-api-key": elevenlabs_key,
                     "Content-Type": "application/json"
@@ -83,63 +100,46 @@ def process_conversation(user_text):
                 
                 if tts_response.status_code == 200:
                     st.audio(tts_response.content, format="audio/mp3", autoplay=True)
-                else:
-                    st.error(f"聲音生成失敗: {tts_response.text}")
-
+                
             except Exception as e:
                 st.error(f"發生錯誤: {e}")
     else:
-        st.error("請檢查 Key 是否都已填寫")
+        st.warning("系統尚未設定完成，請聯絡開發者。")
 
-# --- 輸入區域 (語音 + 文字) ---
+# --- 7. 輸入區 (錄音優先) ---
 st.divider()
-col1, col2 = st.columns([1, 4])
 
-with col1:
-    st.write("🎙️ 按下說話：")
-    # 錄音按鈕
+# 調整按鈕置中
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
     audio = mic_recorder(
-        start_prompt="開始錄音",
-        stop_prompt="結束並發送", 
-        key='recorder'
+        start_prompt="🎙️ 按此說話",
+        stop_prompt="⏹️ 說完了", 
+        key='recorder',
+        format="mp3"
     )
 
-with col2:
-    # 傳統文字輸入框
-    text_input = st.chat_input("或用打字的...")
-
-# --- 處理輸入邏輯 ---
-
-# 情況 A: 使用者用了錄音
+# 處理錄音
 if audio:
-    # 為了避免重複發送，我們檢查這個音檔是否剛被處理過
     if "last_audio_id" not in st.session_state:
         st.session_state.last_audio_id = None
     
-    # 只有當這是新的錄音時才執行
     if audio['id'] != st.session_state.last_audio_id:
         st.session_state.last_audio_id = audio['id']
         
         if client:
-            with st.spinner("正在聽你說話..."):
-                # 將錄音資料轉為 OpenAI Whisper 能讀的格式
-                audio_bytes = audio['bytes']
-                audio_file = io.BytesIO(audio_bytes)
-                audio_file.name = "voice.mp3" # 偽裝成檔案
-                
-                # 呼叫 Whisper (語音轉文字)
-                try:
-                    transcript = client.audio.transcriptions.create(
-                        model="whisper-1",
-                        file=audio_file
-                    )
-                    user_voice_text = transcript.text
-                    # 執行對話流程
-                    process_conversation(user_voice_text)
-                    
-                except Exception as e:
-                    st.error(f"聽不懂你的聲音: {e}")
+            audio_file = io.BytesIO(audio['bytes'])
+            audio_file.name = "voice.mp3"
+            try:
+                transcript = client.audio.transcriptions.create(
+                    model="whisper-1", file=audio_file
+                )
+                process_conversation(transcript.text)
+            except Exception as e:
+                st.error("聽不清楚，請再說一次")
 
-# 情況 B: 使用者用了打字
-if text_input:
-    process_conversation(text_input)
+# 隱藏的文字輸入框 (為了排版美觀，放在最下面Expander裡，以備不時之需)
+with st.expander("或者使用文字輸入"):
+    text_input = st.chat_input("輸入文字...")
+    if text_input:
+        process_conversation(text_input)
