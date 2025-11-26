@@ -8,7 +8,6 @@ import os
 # --- 1. 頁面與 UI 設定 ---
 st.set_page_config(page_title="想念", page_icon="🤍", layout="centered")
 
-# CSS 強制美化 (配合 config.toml 達到完美效果)
 custom_css = """
 <style>
     /* 強制字體顏色 */
@@ -30,7 +29,15 @@ custom_css = """
         color: #333333;
     }
     
-    /* 隱藏選單 */
+    /* 儀表板卡片 */
+    .dashboard-card {
+        background-color: #FFFFFF;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #E0E0E0;
+        margin-bottom: 10px;
+    }
+    
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 </style>
@@ -38,7 +45,6 @@ custom_css = """
 st.markdown(custom_css, unsafe_allow_html=True)
 
 # --- 2. 初始化與連線 ---
-# 檢查 Secrets
 if "SUPABASE_URL" not in st.secrets or "ADMIN_PASSWORD" not in st.secrets:
     st.error("⚠️ 請先設定 Secrets")
     st.stop()
@@ -58,15 +64,30 @@ def init_supabase():
 
 supabase = init_supabase()
 
-# --- 3. 核心功能函數 ---
+# --- 3. 系統監控函數 (新增) ---
+
+def get_elevenlabs_usage():
+    """查詢 ElevenLabs 剩餘額度"""
+    try:
+        url = "https://api.elevenlabs.io/v1/user/subscription"
+        headers = {"xi-api-key": elevenlabs_key}
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            used = data['character_count']
+            limit = data['character_limit']
+            return used, limit
+        return 0, 0
+    except:
+        return 0, 0
+
+# --- 4. 核心功能函數 ---
 
 def get_embedding(text):
-    """將文字轉為向量"""
     text = text.replace("\n", " ")
     return client.embeddings.create(input=[text], model="text-embedding-3-small").data[0].embedding
 
 def save_memories_to_vector_db(role, text_data):
-    """將長篇對話切碎並存入向量資料庫"""
     supabase.table("memories").delete().eq("role", role).execute()
     
     chunk_size = 500
@@ -95,7 +116,6 @@ def save_memories_to_vector_db(role, text_data):
     return True
 
 def search_relevant_memories(role, query_text):
-    """搜尋相關記憶"""
     try:
         query_vec = get_embedding(query_text)
         response = supabase.rpc(
@@ -130,7 +150,7 @@ def load_persona(role):
         return res.data[0]['content'] if res.data else None
     except: return None
 
-# --- 4. 權限管理 ---
+# --- 5. 權限管理 ---
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
@@ -141,11 +161,11 @@ def check_pass():
     else:
         st.error("密碼錯誤")
 
-# --- 5. 主介面 ---
+# --- 6. 主介面 ---
 st.title("🤍 想念")
 
 if not st.session_state.is_admin:
-    # === 親友前台 ===
+    # === 親友前台 (保持不變) ===
     roles = load_all_roles()
     if not roles:
         st.info("☁️ 尚未建立數位人格")
@@ -161,29 +181,22 @@ if not st.session_state.is_admin:
 
         if "chat_history" not in st.session_state: st.session_state.chat_history = []
 
-        # --- 核心對話函數 (已修正縮排) ---
         def process_chat(audio_file):
             try:
-                # 1. 語音轉字
                 transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
                 user_text = transcript.text
 
-                # 【防呆修正】：這裡縮排對齊了，不會報錯
                 if not user_text or len(user_text.strip()) < 2:
                     st.warning("👂 聽不太清楚，請靠近麥克風再說一次...")
                     return
 
-                # 2. 搜尋深層記憶
                 with st.spinner("回憶檢索中..."):
                     relevant_memory = search_relevant_memories(sel_role, user_text)
                 
-                # 3. 組合 Prompt
                 system_instruction = f"""
                 {persona_summary}
-                
                 【相關的具體回憶片段】：
                 {relevant_memory}
-                
                 請根據上述的人設與回憶片段來回答。如果回憶片段中有具體細節，請自然地帶入對話中。
                 """
                 
@@ -191,13 +204,107 @@ if not st.session_state.is_admin:
                 msgs = [{"role": "system", "content": system_instruction}] + recent_history
                 msgs.append({"role": "user", "content": user_text})
 
-                # 4. AI 生成
                 res = client.chat.completions.create(model="gpt-4o-mini", messages=msgs)
                 ai_text = res.choices[0].message.content
 
                 st.session_state.chat_history.append({"role": "user", "content": user_text})
                 st.session_state.chat_history.append({"role": "assistant", "content": ai_text})
 
-                # 5. 語音合成
                 tts_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-                headers = {"xi-api-key": elevenl
+                headers = {"xi-api-key": elevenlabs_key, "Content-Type": "application/json"}
+                data = {"text": ai_text, "model_id": "eleven_multilingual_v2", "voice_settings": {"stability": 0.5, "similarity_boost": 0.8}}
+                tts_res = requests.post(tts_url, json=data, headers=headers)
+                if tts_res.status_code == 200:
+                    st.audio(tts_res.content, format="audio/mp3", autoplay=True)
+
+            except Exception as e: 
+                st.error(f"Error: {e}")
+
+        st.divider()
+        st.markdown("##### 🎙️ 按下錄音跟我說話：")
+        val = st.audio_input("錄音", key="rec_pub")
+        if val and persona_summary: process_chat(val)
+
+        if st.session_state.chat_history:
+            last = st.session_state.chat_history[-1]
+            if last["role"] == "assistant":
+                st.markdown(f'<div class="ai-bubble"><b>祂說：</b><br>{last["content"]}</div>', unsafe_allow_html=True)
+
+    st.divider()
+    with st.expander("🔒 會員登入"):
+        st.text_input("密碼", type="password", key="pwd_input", on_change=check_pass)
+
+else:
+    # === 管理員後台 (新增儀表板) ===
+    st.success("🔓 管理員模式")
+    if st.button("登出"):
+        st.session_state.is_admin = False
+        st.rerun()
+
+    # --- 系統健康儀表板 (新增區塊) ---
+    st.markdown("### 📊 系統健康儀表板")
+    
+    col_sys1, col_sys2 = st.columns(2)
+    
+    # ElevenLabs 狀態
+    with col_sys1:
+        st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
+        st.caption("🗣️ 聲音合成額度 (ElevenLabs)")
+        used, limit = get_elevenlabs_usage()
+        if limit > 0:
+            usage_percent = used / limit
+            st.progress(usage_percent)
+            st.write(f"**{used:,}** / {limit:,} 字元")
+            if usage_percent > 0.8:
+                st.error("⚠️ 額度即將用完！")
+        else:
+            st.warning("無法讀取數據")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # OpenAI 狀態
+    with col_sys2:
+        st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
+        st.caption("🧠 大腦餘額 (OpenAI)")
+        st.info("OpenAI 不提供餘額查詢 API")
+        st.markdown("""
+            <a href="https://platform.openai.com/settings/organization/billing/overview" target="_blank">
+                <button style="
+                    width:100%; 
+                    background-color:white; 
+                    border:1px solid #ccc; 
+                    padding:8px; 
+                    border-radius:5px; 
+                    cursor:pointer;">
+                    🔗 點此查看帳單
+                </button>
+            </a>
+        """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.divider()
+    
+    # --- 原本的建立功能 ---
+    with st.container(border=True):
+        st.subheader("📝 建立/更新全息數位分身")
+        c1, c2 = st.columns(2)
+        with c1: t_role = st.selectbox("對象身分", ["妻子", "丈夫", "兒子", "女兒", "朋友"], key="tr")
+        with c2: m_name = st.text_input("您的名字", value="爸爸", key="mn")
+        
+        up_file = st.file_uploader(f"上傳與【{t_role}】的 LINE 紀錄", type="txt")
+
+        if st.button("✨ 開始深度刻錄", use_container_width=True):
+            if up_file and m_name:
+                with st.spinner("正在進行雙重處理..."):
+                    try:
+                        raw_text = up_file.read().decode("utf-8")
+                        
+                        prompt = f"分析以下對話。主角：{m_name}，對象：{t_role}。生成語氣指導System Prompt。資料：{raw_text[-20000:]}"
+                        res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
+                        summary = res.choices[0].message.content
+                        save_persona_summary(t_role, summary)
+                        
+                        save_memories_to_vector_db(t_role, raw_text)
+                        
+                        st.success(f"✅ 完成！對【{t_role}】的靈魂與所有細節記憶已永久保存。")
+                        st.balloons()
+                    except Exception as e: st.error(f"錯誤: {e}")
