@@ -168,8 +168,18 @@ if not st.session_state.is_admin:
         def process_chat(audio_file):
             try:
                 # 1. 語音轉字
-                transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
-                user_text = transcript.text
+# ... 在 process_chat 或 process_audio_public 函數內 ...
+
+transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
+user_text = transcript.text
+
+# 【新增這段防呆代碼】
+# 檢查：如果文字是空的，或者只有標點符號，就直接跳出，不要浪費錢去呼叫 GPT
+if not user_text or len(user_text.strip()) < 2:
+    st.warning("👂 聽不太清楚，請靠近麥克風再說一次...")
+    return # 結束函數，不繼續執行
+
+# ...下面才是原本的 搜尋深層記憶 & AI 思考 ...
 
                 # 2. 搜尋深層記憶 (這是新增的關鍵步驟!)
                 with st.spinner("回憶檢索中..."):
