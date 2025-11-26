@@ -6,7 +6,7 @@ import numpy as np
 import os
 import json
 import io
-from pydub import AudioSegment # 引入音訊處理庫
+from pydub import AudioSegment
 
 # --- 1. 頁面與 UI 設定 ---
 st.set_page_config(page_title="想念", page_icon="🤍", layout="centered")
@@ -39,6 +39,13 @@ custom_css = """
         font-weight: bold;
         color: #1565C0 !important;
         margin-bottom: 10px;
+    }
+    .dashboard-card {
+        background-color: #FFFFFF;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #E0E0E0;
+        margin-bottom: 20px;
     }
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
@@ -89,6 +96,18 @@ question_db = load_questions_from_file()
 
 # --- 4. 核心功能函數 ---
 
+def get_elevenlabs_usage():
+    """查詢餘額"""
+    try:
+        url = "https://api.elevenlabs.io/v1/user/subscription"
+        headers = {"xi-api-key": elevenlabs_key}
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            return data['character_count'], data['character_limit']
+        return 0, 0
+    except: return 0, 0
+
 def get_embedding(text):
     text = text.replace("\n", " ")
     return client.embeddings.create(input=[text], model="text-embedding-3-small").data[0].embedding
@@ -126,7 +145,6 @@ def load_persona(role):
     except: return None
 
 # --- 音訊處理函數 ---
-
 def upload_nickname_audio(role, audio_bytes):
     try:
         safe_role = ROLE_MAPPING.get(role, "others")
@@ -160,31 +178,18 @@ def train_voice_sample(audio_bytes):
         print(f"訓練上傳失敗: {e}")
         return False
 
-# --- 關鍵修正：音訊合併邏輯 ---
 def merge_audio_clips(intro_bytes, main_bytes):
-    """
-    使用 pydub 將兩段音訊無縫接合
-    intro_bytes: 暱稱錄音
-    main_bytes: AI 生成的內容
-    """
+    """拼接音訊並加入靜音緩衝"""
     try:
-        # 讀取音訊
         intro = AudioSegment.from_file(io.BytesIO(intro_bytes), format="mp3")
         main = AudioSegment.from_file(io.BytesIO(main_bytes), format="mp3")
-        
-        # 建立一段 200ms (0.2秒) 的靜音
-        silence = AudioSegment.silent(duration=200)
-        
-        # 拼接: 暱稱 + 靜音 + AI語音
+        silence = AudioSegment.silent(duration=200) # 0.2秒靜音
         combined = intro + silence + main
-        
-        # 輸出為 Bytes
         buffer = io.BytesIO()
         combined.export(buffer, format="mp3")
         return buffer.getvalue()
     except Exception as e:
-        st.error(f"音訊合併失敗: {e}")
-        # 如果合併失敗，至少回傳主要內容，不要讓程式崩潰
+        st.error(f"音訊合併失敗 (請確認已安裝 ffmpeg 與 pyaudioop): {e}")
         return main_bytes
 
 # --- 5. 權限管理 ---
@@ -200,7 +205,7 @@ def check_pass():
 st.title("🤍 想念")
 
 if not st.session_state.is_admin:
-    # === 親友前台 ===
+    # === 親友前台 (User Mode) ===
     roles = load_all_roles()
     if not roles:
         st.info("☁️ 尚未建立數位人格")
@@ -218,11 +223,13 @@ if not st.session_state.is_admin:
 
         def process_chat(audio_file):
             try:
+                # 1. 語音轉字
                 transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
                 user_text = transcript.text
                 if not user_text or len(user_text.strip()) < 2:
                     st.warning("👂 請再說一次..."); return
 
+                # 2. 檢索記憶
                 with st.spinner("思考與檢索中..."):
                     relevant_memory = search_relevant_memories(sel_role, user_text)
                     
@@ -230,8 +237,7 @@ if not st.session_state.is_admin:
                     
                     nickname_instruction = ""
                     if has_nickname_audio:
-                        # 告訴 AI 不要自己說出暱稱，只要說後面的話就好
-                        nickname_instruction = "【特殊指令】：你的回應**不要**包含對方的暱稱或問候語，直接講內容。因為系統會自動在開頭播放真實的暱稱錄音。"
+                        nickname_instruction = "【特殊指令】：你的回應**不要**包含對方的暱稱，直接講內容。因為系統會自動播放真實暱稱。"
                     else:
                         nickname_instruction = "請在開頭自然呼喚對方的暱稱。"
 
@@ -239,7 +245,7 @@ if not st.session_state.is_admin:
                     {persona_summary}
                     【深層記憶】：{relevant_memory}
                     {nickname_instruction}
-                    語氣要自然，包含呼吸感。
+                    語氣要自然。
                     """
                     
                     msgs = [{"role": "system", "content": system_instruction}] + st.session_state.chat_history[-6:]
@@ -248,15 +254,13 @@ if not st.session_state.is_admin:
                     res = client.chat.completions.create(model="gpt-4o-mini", messages=msgs)
                     ai_text = res.choices[0].message.content
                     
-                    # 顯示文字
                     st.session_state.chat_history.append({"role": "user", "content": user_text})
                     st.session_state.chat_history.append({"role": "assistant", "content": ai_text})
 
-                    # --- 音訊生成與處理 ---
+                    # --- 音訊生成與拼接 ---
                     final_audio_bytes = b""
                     ai_audio_bytes = b""
 
-                    # 1. 生成 AI 部分的語音
                     if ai_text:
                         tts_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
                         headers = {"xi-api-key": elevenlabs_key, "Content-Type": "application/json"}
@@ -269,18 +273,15 @@ if not st.session_state.is_admin:
                         if tts_res.status_code == 200:
                             ai_audio_bytes = tts_res.content
 
-                    # 2. 進行拼接 (如果需要)
                     if has_nickname_audio and ai_audio_bytes:
                         nickname_bytes = get_nickname_audio_bytes(sel_role)
                         if nickname_bytes:
-                            # 呼叫合併函數
                             final_audio_bytes = merge_audio_clips(nickname_bytes, ai_audio_bytes)
                         else:
                             final_audio_bytes = ai_audio_bytes
                     else:
                         final_audio_bytes = ai_audio_bytes
 
-                    # 3. 播放
                     if final_audio_bytes:
                         st.audio(final_audio_bytes, format="audio/mp3", autoplay=True)
 
@@ -300,11 +301,29 @@ if not st.session_state.is_admin:
         st.text_input("密碼", type="password", key="pwd_input", on_change=check_pass)
 
 else:
-    # === 管理員後台 ===
+    # === 管理員後台 (Admin Mode) ===
     st.success("🔓 管理員模式")
     if st.button("登出"):
         st.session_state.is_admin = False
         st.rerun()
+
+    # --- 儀表板回歸 ---
+    st.markdown("### 📊 系統健康儀表板")
+    c_sys1, c_sys2 = st.columns(2)
+    with c_sys1:
+        st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
+        st.caption("🗣️ 聲音合成額度 (ElevenLabs)")
+        used, limit = get_elevenlabs_usage()
+        if limit > 0:
+            st.progress(used / limit)
+            st.write(f"**{used:,}** / {limit:,} 字元")
+        else: st.warning("無法讀取")
+        st.markdown('</div>', unsafe_allow_html=True)
+    with c_sys2:
+        st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
+        st.caption("🧠 大腦餘額 (OpenAI)")
+        st.markdown("""<a href="https://platform.openai.com/settings/organization/billing/overview" target="_blank"><button style="width:100%;">🔗 查看帳單</button></a>""", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     tab1, tab2, tab3 = st.tabs(["📝 基礎人設", "🧠 回憶補完", "🎯 完美暱稱"])
 
@@ -317,10 +336,10 @@ else:
         
         up_file = st.file_uploader(f"上傳與【{t_role}】的紀錄", type="txt")
         if st.button("✨ 生成基礎人設"):
-            if up_file:
+            if up_file and member_name:
                 with st.spinner("分析中..."):
                     raw = up_file.read().decode("utf-8")
-                    prompt = f"分析對話。主角對{t_role}的說話風格。專屬暱稱是「{nickname}」。請生成System Prompt。資料：{raw[-20000:]}"
+                    prompt = f"分析對話。主角(我):{member_name}。對象:{t_role}。暱稱:{nickname}。生成System Prompt，重點：模仿主角語氣，對象是{t_role}時務必使用暱稱{nickname}。資料：{raw[-20000:]}"
                     res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
                     save_persona_summary(t_role, res.choices[0].message.content)
                     st.success("更新完成")
