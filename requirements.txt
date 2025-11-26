@@ -4,4 +4,3 @@ requests
 supabase
 numpy
 pydub
-pyaudioop
