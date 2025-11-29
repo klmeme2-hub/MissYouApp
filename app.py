@@ -9,7 +9,7 @@ import io
 from pydub import AudioSegment
 
 # --- 1. 頁面與 UI 設定 ---
-st.set_page_config(page_title="想念", page_icon="🤍", layout="centered")
+st.set_page_config(page_title="想念", page_icon="🤍", layout="wide") # 改為 wide 寬螢幕模式以容納雙欄
 
 custom_css = """
 <style>
@@ -32,13 +32,13 @@ custom_css = """
         color: #333333;
     }
     
-    /* 題目卡片 */
-    .question-card {
+    /* 題目卡片 (Active) */
+    .question-card-active {
         background-color: #E3F2FD;
-        padding: 25px;
+        padding: 20px;
         border-radius: 12px;
         margin-bottom: 20px;
-        border: 1px solid #BBDEFB;
+        border: 2px solid #2196F3;
         text-align: center;
     }
     .q-text {
@@ -47,15 +47,18 @@ custom_css = """
         color: #1565C0 !important;
         margin-bottom: 10px;
     }
-    
-    /* 儀表板卡片 */
-    .dashboard-card {
+
+    /* 歷史回憶卡片 */
+    .history-card {
         background-color: #FFFFFF;
         padding: 15px;
-        border-radius: 10px;
+        border-radius: 8px;
         border: 1px solid #E0E0E0;
-        margin-bottom: 20px;
+        margin-bottom: 10px;
+        font-size: 14px;
     }
+    .history-q { font-weight: bold; color: #555 !important; }
+    .history-a { color: #333 !important; margin-top: 5px; }
     
     /* 隱藏 Streamlit 選單 */
     #MainMenu {visibility: hidden;}
@@ -84,7 +87,6 @@ def init_supabase():
 
 supabase = init_supabase()
 
-# 角色對照表 (解決中文檔名問題)
 ROLE_MAPPING = {
     "妻子": "wife",
     "丈夫": "husband",
@@ -109,7 +111,6 @@ question_db = load_questions_from_file()
 # --- 4. 核心功能函數 ---
 
 def get_elevenlabs_usage():
-    """查詢 ElevenLabs 餘額"""
     try:
         url = "https://api.elevenlabs.io/v1/user/subscription"
         headers = {"xi-api-key": elevenlabs_key}
@@ -124,10 +125,32 @@ def get_embedding(text):
     text = text.replace("\n", " ")
     return client.embeddings.create(input=[text], model="text-embedding-3-small").data[0].embedding
 
-def save_memory_fragment(role, text_content):
-    """儲存單條記憶片段"""
-    embedding = get_embedding(text_content)
-    data = {"role": role, "content": text_content, "embedding": embedding}
+def get_memories_by_role(role):
+    """取得該角色所有的回憶"""
+    try:
+        response = supabase.table("memories").select("*").eq("role", role).order('id', desc=True).execute()
+        return response.data
+    except: return []
+
+def save_memory_fragment(role, question, answer):
+    """儲存記憶 (含覆寫邏輯)"""
+    full_content = f"【關於{question}】：{answer}"
+    
+    # 1. 先刪除舊的 (如果有的話)
+    # 這裡我們用模糊搜尋來刪除包含該題目的舊記憶
+    try:
+        # 簡單做法：刪除內容開頭符合的
+        # 注意：這需要 Supabase 安裝 pg_trgm extension 才能用 like，或是我們用 Python 過濾 ID 來刪除
+        # 這裡採用更安全的做法：先撈出所有，Python 比對後刪除 ID
+        existing = get_memories_by_role(role)
+        for mem in existing:
+            if mem['content'].startswith(f"【關於{question}】"):
+                supabase.table("memories").delete().eq("id", mem['id']).execute()
+    except: pass
+    
+    # 2. 插入新的
+    embedding = get_embedding(full_content)
+    data = {"role": role, "content": full_content, "embedding": embedding}
     supabase.table("memories").insert(data).execute()
     return True
 
@@ -158,16 +181,12 @@ def load_persona(role):
     except: return None
 
 # --- 音訊相關函數 ---
-
 def upload_nickname_audio(role, audio_bytes):
-    """上傳真實暱稱音檔"""
     try:
         safe_role = ROLE_MAPPING.get(role, "others")
         file_path = f"nickname_{safe_role}.mp3"
         supabase.storage.from_("audio_clips").upload(
-            file_path, 
-            audio_bytes, 
-            file_options={"content-type": "audio/mpeg", "upsert": "true"}
+            file_path, audio_bytes, file_options={"content-type": "audio/mpeg", "upsert": "true"}
         )
         return True
     except Exception as e:
@@ -175,51 +194,37 @@ def upload_nickname_audio(role, audio_bytes):
         return False
 
 def get_nickname_audio_bytes(role):
-    """下載真實暱稱音檔"""
     try:
         safe_role = ROLE_MAPPING.get(role, "others")
         file_path = f"nickname_{safe_role}.mp3"
         response = supabase.storage.from_("audio_clips").download(file_path)
         return response
-    except:
-        return None
+    except: return None
 
 def train_voice_sample(audio_bytes):
-    """上傳音檔至 ElevenLabs 進行訓練"""
     try:
         url = f"https://api.elevenlabs.io/v1/voices/{voice_id}/edit"
         headers = {"xi-api-key": elevenlabs_key}
-        # 不改變 Voice Name，只上傳樣本
         files = {'files': ('training_sample.mp3', audio_bytes, 'audio/mpeg')}
         data = {'name': 'My Digital Clone'} 
         response = requests.post(url, headers=headers, data=data, files=files)
         return response.status_code == 200
     except Exception as e:
-        print(f"訓練上傳失敗: {e}") 
+        print(f"訓練上傳失敗: {e}")
         return False
 
 def merge_audio_clips(intro_bytes, main_bytes):
-    """
-    使用 pydub 將兩段音訊無縫接合 (修正版：自動偵測格式)
-    """
     try:
-        if not intro_bytes or len(intro_bytes) < 100:
-            return main_bytes
-
-        # 自動偵測格式 (不指定 format="mp3")
+        if not intro_bytes or len(intro_bytes) < 100: return main_bytes
         intro = AudioSegment.from_file(io.BytesIO(intro_bytes))
         main = AudioSegment.from_file(io.BytesIO(main_bytes))
-        
-        # 建立 0.2秒 靜音
         silence = AudioSegment.silent(duration=200)
-        
         combined = intro + silence + main
-        
         buffer = io.BytesIO()
         combined.export(buffer, format="mp3")
         return buffer.getvalue()
     except Exception as e:
-        print(f"音訊合併失敗 (啟用備用方案): {e}")
+        print(f"音訊合併失敗: {e}")
         return main_bytes
 
 # --- 5. 權限管理 ---
@@ -236,7 +241,12 @@ st.title("🤍 想念")
 
 if not st.session_state.is_admin:
     # === 親友前台 (User Mode) ===
+    # 這裡將頁面寬度縮回 centered 以保持對話體驗
     roles = load_all_roles()
+    
+    # 簡單的 CSS hack 讓前台保持置中
+    st.markdown("""<style>.block-container {max_width: 700px; padding-top: 2rem;}</style>""", unsafe_allow_html=True)
+
     if not roles:
         st.info("☁️ 尚未建立數位人格")
     else:
@@ -253,16 +263,13 @@ if not st.session_state.is_admin:
 
         def process_chat(audio_file):
             try:
-                # 1. 語音轉字
                 transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
                 user_text = transcript.text
                 if not user_text or len(user_text.strip()) < 2:
                     st.warning("👂 請再說一次..."); return
 
-                # 2. 檢索記憶
                 with st.spinner("思考與檢索中..."):
                     relevant_memory = search_relevant_memories(sel_role, user_text)
-                    
                     has_nickname_audio = get_nickname_audio_bytes(sel_role) is not None
                     
                     nickname_instruction = ""
@@ -271,7 +278,6 @@ if not st.session_state.is_admin:
                     else:
                         nickname_instruction = "請在開頭自然呼喚對方的暱稱。"
 
-                    # 3. 生成 Prompt
                     system_instruction = f"""
                     {persona_summary}
                     【深層記憶】：{relevant_memory}
@@ -282,14 +288,12 @@ if not st.session_state.is_admin:
                     msgs = [{"role": "system", "content": system_instruction}] + st.session_state.chat_history[-6:]
                     msgs.append({"role": "user", "content": user_text})
 
-                    # 4. GPT 生成
                     res = client.chat.completions.create(model="gpt-4o-mini", messages=msgs)
                     ai_text = res.choices[0].message.content
                     
                     st.session_state.chat_history.append({"role": "user", "content": user_text})
                     st.session_state.chat_history.append({"role": "assistant", "content": ai_text})
 
-                    # 5. 音訊生成與拼接
                     final_audio_bytes = b""
                     ai_audio_bytes = b""
 
@@ -308,12 +312,9 @@ if not st.session_state.is_admin:
                     if has_nickname_audio and ai_audio_bytes:
                         nickname_bytes = get_nickname_audio_bytes(sel_role)
                         if nickname_bytes:
-                            # 呼叫合併函數 (已修復格式問題)
                             final_audio_bytes = merge_audio_clips(nickname_bytes, ai_audio_bytes)
-                        else:
-                            final_audio_bytes = ai_audio_bytes
-                    else:
-                        final_audio_bytes = ai_audio_bytes
+                        else: final_audio_bytes = ai_audio_bytes
+                    else: final_audio_bytes = ai_audio_bytes
 
                     if final_audio_bytes:
                         st.audio(final_audio_bytes, format="audio/mp3", autoplay=True)
@@ -340,34 +341,33 @@ else:
         st.session_state.is_admin = False
         st.rerun()
 
-    # --- 儀表板 ---
+    # 儀表板
     st.markdown("### 📊 系統健康儀表板")
     c_sys1, c_sys2 = st.columns(2)
     with c_sys1:
         st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
-        st.caption("🗣️ 聲音合成額度 (ElevenLabs)")
+        st.caption("🗣️ 聲音合成額度")
         used, limit = get_elevenlabs_usage()
         if limit > 0:
             st.progress(used / limit)
-            st.write(f"**{used:,}** / {limit:,} 字元")
+            st.write(f"**{used:,}** / {limit:,}")
         else: st.warning("無法讀取")
         st.markdown('</div>', unsafe_allow_html=True)
     with c_sys2:
         st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
-        st.caption("🧠 大腦餘額 (OpenAI)")
+        st.caption("🧠 大腦餘額")
         st.markdown("""<a href="https://platform.openai.com/settings/organization/billing/overview" target="_blank"><button style="width:100%;">🔗 查看帳單</button></a>""", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs(["📝 基礎人設", "🧠 回憶補完", "🎯 完美暱稱"])
+    tab1, tab2, tab3 = st.tabs(["📝 基礎人設", "🧠 回憶補完 (雙欄)", "🎯 完美暱稱"])
 
-    # TAB 1: 基礎人設 (含所有必要欄位)
+    # TAB 1: 基礎人設
     with tab1:
         st.caption("設定對話語氣與基礎資訊")
         c1, c2 = st.columns(2)
         with c1: t_role = st.selectbox("對象", list(ROLE_MAPPING.keys()), key="tr")
         with c2: member_name = st.text_input("您的名字 (供AI識別)", value="爸爸", key="mn")
         nickname = st.text_input("專屬暱稱", placeholder="例如：寶貝", key="nk")
-        
         up_file = st.file_uploader(f"上傳與【{t_role}】的紀錄", type="txt")
         if st.button("✨ 生成基礎人設"):
             if up_file and member_name:
@@ -378,50 +378,129 @@ else:
                     save_persona_summary(t_role, res.choices[0].message.content)
                     st.success("更新完成")
 
-    # TAB 2: 回憶補完 (順序引導 + 聲音訓練)
+    # TAB 2: 回憶補完 (雙欄進化版)
     with tab2:
-        st.caption("回憶補完計畫")
+        # 1. 準備資料
         q_role = st.selectbox("補充對象回憶", list(question_db.keys()), key="q_role")
-        q_list = question_db.get(q_role, ["(無題目)"])
+        q_list = question_db.get(q_role, [])
         
-        if "q_index" not in st.session_state: st.session_state.q_index = 0
-        if "current_role_q" not in st.session_state: st.session_state.current_role_q = q_role
-        if st.session_state.current_role_q != q_role:
-            st.session_state.q_index = 0
-            st.session_state.current_role_q = q_role
+        # 取得已回答的歷史
+        memories = get_memories_by_role(q_role)
+        # 解析出已回答的題目 (簡單解析)
+        answered_qs = set()
+        for m in memories:
+            # 內容格式：【關於xxx】：ooo
+            if "【關於" in m['content'] and "】：" in m['content']:
+                q_part = m['content'].split("【關於")[1].split("】：")[0]
+                answered_qs.add(q_part)
 
-        if st.session_state.q_index < len(q_list):
-            current_q = q_list[st.session_state.q_index]
-            st.progress((st.session_state.q_index + 1) / len(q_list), text=f"進度：{st.session_state.q_index + 1} / {len(q_list)}")
-            st.markdown(f'<div class="question-card"><div class="q-text">Q{st.session_state.q_index + 1}: {current_q}</div></div>', unsafe_allow_html=True)
-            
-            audio_ans = st.audio_input("錄音回答", key=f"ans_rec_{st.session_state.q_index}")
-            c1, c2, c3 = st.columns([2, 1, 1])
-            with c1:
-                if st.button("✅ 提交並訓練", type="primary", use_container_width=True):
-                    if audio_ans:
-                        with st.spinner("存入中..."):
-                            trans = client.audio.transcriptions.create(model="whisper-1", file=audio_ans)
-                            save_memory_fragment(q_role, f"【關於{current_q}】：{trans.text}")
-                            audio_ans.seek(0)
-                            train_voice_sample(audio_ans.read())
-                            st.session_state.q_index += 1
-                            st.rerun()
-            with c2:
-                if st.button("跳過", use_container_width=True):
-                    st.session_state.q_index += 1
-                    st.rerun()
-            with c3:
-                if st.button("不再問"):
-                     st.session_state.q_index += 1
-                     st.rerun()
+        # 狀態管理：是否在編輯模式
+        if "edit_target" not in st.session_state: st.session_state.edit_target = None
+
+        # 決定當前題目：如果是編輯模式，用編輯的題目；否則找第一個沒回答的
+        current_q = None
+        if st.session_state.edit_target:
+            current_q = st.session_state.edit_target
+            st.info(f"✏️ 正在重新錄製：{current_q}")
         else:
-            st.success("已完成所有題目！")
-            if st.button("重新開始"):
-                st.session_state.q_index = 0
-                st.rerun()
+            for q in q_list:
+                if q not in answered_qs:
+                    current_q = q
+                    break
+        
+        # 介面分欄
+        col_left, col_right = st.columns([1.5, 1], gap="medium")
+        
+        # --- 左欄：操作區 ---
+        with col_left:
+            st.markdown("### 🎙️ 進行中任務")
+            if current_q:
+                # 題目卡片
+                st.markdown(f"""
+                <div class="question-card-active">
+                    <div class="q-text">{current_q}</div>
+                    <div style="font-size:14px; color:#555;">請按下錄音，自然地講述這段回憶...</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # 錄音
+                audio_ans = st.audio_input("錄音回答", key=f"ans_{current_q}")
+                
+                # 識別結果緩存
+                if "transcribed_text" not in st.session_state: st.session_state.transcribed_text = ""
+                
+                if audio_ans:
+                    # 避免重複識別，只在音訊變更時識別 (Streamlit audio_input 機制)
+                    trans = client.audio.transcriptions.create(model="whisper-1", file=audio_ans)
+                    st.session_state.transcribed_text = trans.text
+                    
+                    st.text_area("📝 識別文字 (可手動修改)", value=st.session_state.transcribed_text, key="edit_text_area")
+                    
+                    c_act1, c_act2 = st.columns(2)
+                    with c_act1:
+                        # 試聽功能
+                        if st.button("🔊 試聽 AI 唸一遍", use_container_width=True):
+                            if st.session_state.transcribed_text:
+                                with st.spinner("生成試聽中..."):
+                                    tts_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+                                    headers = {"xi-api-key": elevenlabs_key, "Content-Type": "application/json"}
+                                    data = {"text": st.session_state.transcribed_text, "model_id": "eleven_multilingual_v2", "voice_settings": {"stability": 0.4, "similarity_boost": 0.65}}
+                                    r = requests.post(tts_url, json=data, headers=headers)
+                                    if r.status_code == 200:
+                                        st.audio(r.content, format="audio/mp3", autoplay=True)
+                                        st.caption("💡 聽起來如何？答得越多，語氣會越像喔！")
+                    
+                    with c_act2:
+                        # 提交功能
+                        if st.button("💾 確認無誤，存入並訓練", type="primary", use_container_width=True):
+                            final_text = st.session_state.edit_text_area # 使用文字框的內容
+                            with st.spinner("存入記憶並訓練 Voice ID..."):
+                                save_memory_fragment(q_role, current_q, final_text)
+                                # 訓練聲音
+                                audio_ans.seek(0)
+                                train_voice_sample(audio_ans.read())
+                                
+                                st.success("已儲存！")
+                                # 清除狀態，準備下一題
+                                st.session_state.edit_target = None
+                                st.session_state.transcribed_text = ""
+                                st.rerun()
 
-    # TAB 3: 完美暱稱 (Audio Injection)
+                # 跳過按鈕
+                if st.button("⏭️ 跳過此題"):
+                    # 簡單邏輯：我們可以在記憶裡存一個空的標記，或者session state紀錄跳過
+                    # 這裡示範簡單存一個標記
+                    save_memory_fragment(q_role, current_q, "(已略過)")
+                    st.rerun()
+            else:
+                st.success("🎉 太棒了！此角色的題庫已全部完成。")
+
+        # --- 右欄：歷史紀錄 ---
+        with col_right:
+            st.markdown("### 📜 回憶存摺")
+            st.caption("已完成的題目 (點擊可重錄)")
+            
+            # 顯示列表 (包含已略過的)
+            with st.container(height=500):
+                for mem in memories:
+                    if "【關於" in mem['content']:
+                        try:
+                            q_part = mem['content'].split("【關於")[1].split("】：")[0]
+                            a_part = mem['content'].split("】：")[1]
+                            
+                            st.markdown(f"""
+                            <div class="history-card">
+                                <div class="history-q">Q: {q_part}</div>
+                                <div class="history-a">A: {a_part[:30]}...</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            if st.button("🔄 重錄", key=f"re_{mem['id']}"):
+                                st.session_state.edit_target = q_part
+                                st.rerun()
+                        except: pass
+
+    # TAB 3: 完美暱稱 (保持不變)
     with tab3:
         st.subheader("🎯 完美暱稱重現")
         st.info("錄製一段真實的呼喚，AI 會在開頭直接播放這段錄音。")
