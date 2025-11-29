@@ -8,8 +8,13 @@ import json
 import io
 from pydub import AudioSegment
 
+# ==========================================
+# 版本資訊：A 版 (Master)
+# 更新內容：補回進度條、雙欄佈局、試聽功能、完美暱稱拼接
+# ==========================================
+
 # --- 1. 頁面與 UI 設定 ---
-st.set_page_config(page_title="想念", page_icon="🤍", layout="wide") # 改為 wide 寬螢幕模式以容納雙欄
+st.set_page_config(page_title="想念", page_icon="🤍", layout="wide") # 寬螢幕模式
 
 custom_css = """
 <style>
@@ -60,6 +65,15 @@ custom_css = """
     .history-q { font-weight: bold; color: #555 !important; }
     .history-a { color: #333 !important; margin-top: 5px; }
     
+    /* 儀表板卡片 */
+    .dashboard-card {
+        background-color: #FFFFFF;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #E0E0E0;
+        margin-bottom: 20px;
+    }
+
     /* 隱藏 Streamlit 選單 */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
@@ -133,17 +147,14 @@ def get_memories_by_role(role):
     except: return []
 
 def save_memory_fragment(role, question, answer):
-    """儲存記憶 (含覆寫邏輯)"""
+    """儲存記憶 (含覆寫邏輯：刪除舊的相同題目)"""
     full_content = f"【關於{question}】：{answer}"
     
-    # 1. 先刪除舊的 (如果有的話)
-    # 這裡我們用模糊搜尋來刪除包含該題目的舊記憶
+    # 1. 刪除舊的
     try:
-        # 簡單做法：刪除內容開頭符合的
-        # 注意：這需要 Supabase 安裝 pg_trgm extension 才能用 like，或是我們用 Python 過濾 ID 來刪除
-        # 這裡採用更安全的做法：先撈出所有，Python 比對後刪除 ID
         existing = get_memories_by_role(role)
         for mem in existing:
+            # 簡單比對題目
             if mem['content'].startswith(f"【關於{question}】"):
                 supabase.table("memories").delete().eq("id", mem['id']).execute()
     except: pass
@@ -241,10 +252,9 @@ st.title("🤍 想念")
 
 if not st.session_state.is_admin:
     # === 親友前台 (User Mode) ===
-    # 這裡將頁面寬度縮回 centered 以保持對話體驗
     roles = load_all_roles()
     
-    # 簡單的 CSS hack 讓前台保持置中
+    # 限制前台寬度
     st.markdown("""<style>.block-container {max_width: 700px; padding-top: 2rem;}</style>""", unsafe_allow_html=True)
 
     if not roles:
@@ -263,11 +273,13 @@ if not st.session_state.is_admin:
 
         def process_chat(audio_file):
             try:
+                # 1. 語音轉字
                 transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
                 user_text = transcript.text
                 if not user_text or len(user_text.strip()) < 2:
                     st.warning("👂 請再說一次..."); return
 
+                # 2. 檢索記憶
                 with st.spinner("思考與檢索中..."):
                     relevant_memory = search_relevant_memories(sel_role, user_text)
                     has_nickname_audio = get_nickname_audio_bytes(sel_role) is not None
@@ -359,7 +371,7 @@ else:
         st.markdown("""<a href="https://platform.openai.com/settings/organization/billing/overview" target="_blank"><button style="width:100%;">🔗 查看帳單</button></a>""", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs(["📝 基礎人設", "🧠 回憶補完 (雙欄)", "🎯 完美暱稱"])
+    tab1, tab2, tab3 = st.tabs(["📝 基礎人設", "🧠 回憶補完", "🎯 完美暱稱"])
 
     # TAB 1: 基礎人設
     with tab1:
@@ -378,7 +390,7 @@ else:
                     save_persona_summary(t_role, res.choices[0].message.content)
                     st.success("更新完成")
 
-    # TAB 2: 回憶補完 (雙欄進化版)
+    # TAB 2: 回憶補完 (雙欄 + 進度條)
     with tab2:
         # 1. 準備資料
         q_role = st.selectbox("補充對象回憶", list(question_db.keys()), key="q_role")
@@ -386,18 +398,16 @@ else:
         
         # 取得已回答的歷史
         memories = get_memories_by_role(q_role)
-        # 解析出已回答的題目 (簡單解析)
         answered_qs = set()
         for m in memories:
-            # 內容格式：【關於xxx】：ooo
             if "【關於" in m['content'] and "】：" in m['content']:
                 q_part = m['content'].split("【關於")[1].split("】：")[0]
                 answered_qs.add(q_part)
 
-        # 狀態管理：是否在編輯模式
+        # 狀態管理
         if "edit_target" not in st.session_state: st.session_state.edit_target = None
 
-        # 決定當前題目：如果是編輯模式，用編輯的題目；否則找第一個沒回答的
+        # 決定當前題目
         current_q = None
         if st.session_state.edit_target:
             current_q = st.session_state.edit_target
@@ -408,6 +418,11 @@ else:
                     current_q = q
                     break
         
+        # 【進度條 - 功能回歸】
+        if len(q_list) > 0:
+            progress = len(answered_qs) / len(q_list)
+            st.progress(progress, text=f"回憶補完進度：{len(answered_qs)} / {len(q_list)}")
+
         # 介面分欄
         col_left, col_right = st.columns([1.5, 1], gap="medium")
         
@@ -415,7 +430,6 @@ else:
         with col_left:
             st.markdown("### 🎙️ 進行中任務")
             if current_q:
-                # 題目卡片
                 st.markdown(f"""
                 <div class="question-card-active">
                     <div class="q-text">{current_q}</div>
@@ -423,14 +437,11 @@ else:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # 錄音
                 audio_ans = st.audio_input("錄音回答", key=f"ans_{current_q}")
                 
-                # 識別結果緩存
                 if "transcribed_text" not in st.session_state: st.session_state.transcribed_text = ""
                 
                 if audio_ans:
-                    # 避免重複識別，只在音訊變更時識別 (Streamlit audio_input 機制)
                     trans = client.audio.transcriptions.create(model="whisper-1", file=audio_ans)
                     st.session_state.transcribed_text = trans.text
                     
@@ -438,7 +449,6 @@ else:
                     
                     c_act1, c_act2 = st.columns(2)
                     with c_act1:
-                        # 試聽功能
                         if st.button("🔊 試聽 AI 唸一遍", use_container_width=True):
                             if st.session_state.transcribed_text:
                                 with st.spinner("生成試聽中..."):
@@ -448,28 +458,20 @@ else:
                                     r = requests.post(tts_url, json=data, headers=headers)
                                     if r.status_code == 200:
                                         st.audio(r.content, format="audio/mp3", autoplay=True)
-                                        st.caption("💡 聽起來如何？答得越多，語氣會越像喔！")
                     
                     with c_act2:
-                        # 提交功能
                         if st.button("💾 確認無誤，存入並訓練", type="primary", use_container_width=True):
-                            final_text = st.session_state.edit_text_area # 使用文字框的內容
-                            with st.spinner("存入記憶並訓練 Voice ID..."):
+                            final_text = st.session_state.edit_text_area
+                            with st.spinner("存入並訓練..."):
                                 save_memory_fragment(q_role, current_q, final_text)
-                                # 訓練聲音
                                 audio_ans.seek(0)
                                 train_voice_sample(audio_ans.read())
-                                
                                 st.success("已儲存！")
-                                # 清除狀態，準備下一題
                                 st.session_state.edit_target = None
                                 st.session_state.transcribed_text = ""
                                 st.rerun()
 
-                # 跳過按鈕
                 if st.button("⏭️ 跳過此題"):
-                    # 簡單邏輯：我們可以在記憶裡存一個空的標記，或者session state紀錄跳過
-                    # 這裡示範簡單存一個標記
                     save_memory_fragment(q_role, current_q, "(已略過)")
                     st.rerun()
             else:
@@ -478,29 +480,25 @@ else:
         # --- 右欄：歷史紀錄 ---
         with col_right:
             st.markdown("### 📜 回憶存摺")
-            st.caption("已完成的題目 (點擊可重錄)")
-            
-            # 顯示列表 (包含已略過的)
+            st.caption("已完成 (點擊重錄)")
             with st.container(height=500):
                 for mem in memories:
                     if "【關於" in mem['content']:
                         try:
                             q_part = mem['content'].split("【關於")[1].split("】：")[0]
                             a_part = mem['content'].split("】：")[1]
-                            
                             st.markdown(f"""
                             <div class="history-card">
                                 <div class="history-q">Q: {q_part}</div>
                                 <div class="history-a">A: {a_part[:30]}...</div>
                             </div>
                             """, unsafe_allow_html=True)
-                            
                             if st.button("🔄 重錄", key=f"re_{mem['id']}"):
                                 st.session_state.edit_target = q_part
                                 st.rerun()
                         except: pass
 
-    # TAB 3: 完美暱稱 (保持不變)
+    # TAB 3: 完美暱稱
     with tab3:
         st.subheader("🎯 完美暱稱重現")
         st.info("錄製一段真實的呼喚，AI 會在開頭直接播放這段錄音。")
