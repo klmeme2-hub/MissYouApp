@@ -11,7 +11,8 @@ import string
 from pydub import AudioSegment
 
 # ==========================================
-# 版本資訊：SaaS Beta 2.0 (靈魂刻錄與裂變版)
+# 版本資訊：SaaS Beta 2.1 (優化分享流程版)
+# 更新內容：Step 1 試聽修正、新增 Step 5 完結頁、分享文案一鍵複製
 # ==========================================
 
 # --- 1. 頁面與 UI 設定 ---
@@ -30,15 +31,6 @@ custom_css = """
         padding: 10px;
         background-color: #F0F2F6;
         border-radius: 10px;
-    }
-    .step-item {
-        font-weight: bold;
-        color: #888;
-        padding: 5px 10px;
-    }
-    .step-active {
-        color: #1565C0;
-        border-bottom: 3px solid #1565C0;
     }
     
     /* 腳本卡片 */
@@ -131,10 +123,8 @@ question_db = load_questions_from_file()
 # --- 4. 核心功能函數 ---
 
 def get_current_user_id():
-    # 如果是會員登入
     if "user" in st.session_state and st.session_state.user:
         return st.session_state.user.user.id
-    # 如果是訪客模式 (透過 Token 登入)
     if "guest_data" in st.session_state and st.session_state.guest_data:
         return st.session_state.guest_data['owner_id']
     return None
@@ -197,7 +187,6 @@ def save_memory_fragment(role, question, answer):
     if not user_id: return False
     full_content = f"【關於{question}】：{answer}"
     try:
-        # 刪除舊的 (邏輯刪除)
         res = supabase.table("memories").select("id, content").eq("user_id", user_id).eq("role", role).execute()
         for mem in res.data:
             if mem['content'].startswith(f"【關於{question}】"):
@@ -210,7 +199,6 @@ def save_memory_fragment(role, question, answer):
     return True
 
 def search_relevant_memories(role, query_text):
-    # Supabase RPC 搜尋時，RLS 會自動過濾 user_id，所以不用擔心搜到別人的
     try:
         query_vec = get_embedding(query_text)
         response = supabase.rpc(
@@ -249,21 +237,27 @@ def get_memories_by_role(role):
 # --- 分享功能 ---
 def create_share_token(role):
     user_id = get_current_user_id()
-    # 生成 6 碼隨機 Token
+    # 檢查是否已存在
+    try:
+        exist = supabase.table("share_tokens").select("token").eq("user_id", user_id).eq("role", role).execute()
+        if exist.data:
+            return exist.data[0]['token']
+    except: pass
+
+    # 生成新 Token
     token = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
     try:
         data = {"user_id": user_id, "role": role, "token": token}
         supabase.table("share_tokens").insert(data).execute()
         return token
     except Exception as e:
-        st.error(f"生成失敗: {e}")
         return None
 
 def validate_token(token):
     try:
         res = supabase.table("share_tokens").select("*").eq("token", token).execute()
         if res.data:
-            return res.data[0] # 回傳 {user_id, role, token}
+            return res.data[0]
         return None
     except: return None
 
@@ -281,15 +275,13 @@ if st.session_state.guest_data:
     
     st.markdown(f"<h2 style='text-align:center;'>📞 與 [{role_name}] 通話中...</h2>", unsafe_allow_html=True)
     
-    # 直接載入對話介面 (簡化版)
     persona_summary = load_persona(role_name)
     if not persona_summary:
         st.warning("對方尚未設定此角色的靈魂資料。")
     else:
-        # 顯示照片 (需讀取 Owner 的照片，這裡簡化為通用邏輯，若有需要需改 Storage 路徑)
         col_c1, col_c2 = st.columns([1, 2])
         with col_c1:
-            st.image("https://cdn-icons-png.flaticon.com/512/607/607414.png", width=150) # 預設頭像
+            st.image("https://cdn-icons-png.flaticon.com/512/607/607414.png", width=150)
         with col_c2:
             st.info(f"這是 {role_name} 留給您的聲音。")
 
@@ -303,10 +295,8 @@ if st.session_state.guest_data:
                 user_text = transcript.text
                 if len(user_text.strip()) > 1:
                     with st.spinner("..."):
-                        # RAG
                         mem = search_relevant_memories(role_name, user_text)
                         
-                        # 檢查真實音訊
                         has_nick = get_nickname_audio_bytes(role_name) is not None
                         nick_instr = "【指令】回應開頭不要包含暱稱。" if has_nick else "請在開頭呼喚暱稱。"
                         
@@ -320,7 +310,6 @@ if st.session_state.guest_data:
                         st.session_state.chat_history.append({"role": "user", "content": user_text})
                         st.session_state.chat_history.append({"role": "assistant", "content": ai_text})
                         
-                        # TTS
                         tts_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
                         headers = {"xi-api-key": elevenlabs_key, "Content-Type": "application/json"}
                         data = {"text": ai_text, "model_id": "eleven_multilingual_v2", "voice_settings": {"stability": 0.4, "similarity_boost": 0.65}}
@@ -340,7 +329,6 @@ if st.session_state.guest_data:
         st.session_state.guest_data = None
         st.rerun()
         
-    # 裂變廣告 (Hook)
     st.markdown("""
     <div style='background-color:#F5F5F5; padding:20px; border-radius:10px; text-align:center; margin-top:30px;'>
         <p>您也想為家人留下這樣的聲音嗎？</p>
@@ -401,8 +389,7 @@ else:
             st.rerun()
 
     st.title("🎙️ 靈魂刻錄室")
-    st.caption("親暱喚一聲您摯愛親人的名，留下聲紋永存，以防來不及告別")
-
+    
     # 頂部選單：選擇角色
     col_r1, col_r2 = st.columns([3, 1])
     with col_r1:
@@ -414,8 +401,8 @@ else:
     # --- TAB 1: 複製聲紋 (Wizard) ---
     with tab1:
         # 進度指示器
-        cols = st.columns(4)
-        steps = ["❶ 喚名", "❷ 安慰", "❸ 鼓勵", "❹ 詼諧"]
+        cols = st.columns(5)
+        steps = ["❶ 喚名", "❷ 安慰", "❸ 鼓勵", "❹ 詼諧", "❺ 完成"]
         for i, s in enumerate(steps):
             if i + 1 == st.session_state.step:
                 cols[i].markdown(f"**<span style='color:#1565C0'>{s}</span>**", unsafe_allow_html=True)
@@ -441,10 +428,11 @@ else:
                         rec.seek(0)
                         train_voice_sample(rec.read())
                         
-                        # 3. 試聽拼接
+                        # 3. 試聽拼接 (修正：AI 生成內容不包含暱稱，避免重複)
                         tts_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
                         headers = {"xi-api-key": elevenlabs_key, "Content-Type": "application/json"}
-                        data = {"text": f"{nickname_text}，最近好嗎？", "model_id": "eleven_multilingual_v2"}
+                        # 修改點：這裡只讓 AI 講 "最近好嗎？"
+                        data = {"text": "最近好嗎？", "model_id": "eleven_multilingual_v2"}
                         r = requests.post(tts_url, json=data, headers=headers)
                         
                         final = merge_audio_clips(audio_bytes, r.content)
@@ -474,17 +462,17 @@ else:
                         train_voice_sample(rec.read())
                         st.success("訓練成功！AI 語氣已更新。")
                         
-                        # 簡單試聽
+                        # 試聽邏輯 (修正：不重複暱稱)
                         tts_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
                         headers = {"xi-api-key": elevenlabs_key, "Content-Type": "application/json"}
                         data = {"text": "最近好嗎？", "model_id": "eleven_multilingual_v2"}
                         r = requests.post(tts_url, json=data, headers=headers)
                         
-                        # 嘗試拼接真實暱稱
                         nick_bytes = get_nickname_audio_bytes(target_role)
                         final = merge_audio_clips(nick_bytes, r.content) if nick_bytes else r.content
                         st.audio(final, format="audio/mp3")
-
+            
+            # 導航按鈕
             c_prev, c_next = st.columns(2)
             with c_prev:
                 if st.button("← 上一步"):
@@ -496,18 +484,44 @@ else:
                         st.session_state.step += 1
                         st.rerun()
                 else:
-                    # 完成頁
-                    st.success("🎉 恭喜！初級訓練已完成。")
-                    if st.button("📤 生成數位邀請卡 (分享給親友)"):
-                        token = create_share_token(target_role)
-                        if token:
-                            st.balloons()
-                            st.markdown(f"""
-                            <div style='background:#E8F5E9; padding:20px; border-radius:10px; text-align:center;'>
-                                <h3>您的專屬分享碼：<span style='color:#2E7D32; font-size:32px;'>{token}</span></h3>
-                                <p>請將此代碼傳送給【{target_role}】。<br>對方在首頁輸入代碼即可開始對話。</p>
-                            </div>
-                            """, unsafe_allow_html=True)
+                    # Step 4 的下一步 -> 跳轉 Step 5
+                    if st.button("完成訓練 →"):
+                        st.session_state.step = 5
+                        st.rerun()
+
+        # STEP 5: 完結與分享 (新增)
+        elif st.session_state.step == 5:
+            st.balloons()
+            st.markdown(f"""
+            <div style='text-align:center; padding:30px;'>
+                <h2 style='color:#2E7D32;'>🎉 恭喜！您的初級語氣刻錄模型已完成。</h2>
+                <p>您現在可以分享這個連接給您的【{target_role}】</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # 生成 Token (確保不會一直重複生成，這裡簡化為每次顯示時檢查)
+            if "share_token" not in st.session_state:
+                st.session_state.share_token = create_share_token(target_role)
+            
+            # 準備分享文案
+            token = st.session_state.share_token
+            # 請將下方的網址替換為您的真實 APP 網址
+            share_text = f"""現在AI太厲害了
+我的聲音語氣模型已經刻錄在這裡
+https://missyou.streamlit.app/
+
+你的邀請碼
+{token}
+
+一定要來幫我打個分數喔~
+看看跟我的聲音有幾成像?"""
+
+            st.info("👇 點擊下方區塊右上角的按鈕即可複製文案")
+            st.code(share_text, language="text")
+            
+            if st.button("← 返回 Step 1 重新錄製"):
+                st.session_state.step = 1
+                st.rerun()
 
     # --- TAB 2: 人設補完 (簡化版) ---
     with tab2:
@@ -561,8 +575,11 @@ else:
                     c1, c2 = st.columns(2)
                     with c1:
                         if st.button("🔊 試聽"):
-                            # 試聽邏輯...
-                            pass # (省略重複代碼以節省篇幅, 功能同前版)
+                            tts_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+                            headers = {"xi-api-key": elevenlabs_key, "Content-Type": "application/json"}
+                            data = {"text": st.session_state.trans_text, "model_id": "eleven_multilingual_v2", "voice_settings": {"stability": 0.4, "similarity_boost": 0.65}}
+                            r = requests.post(tts_url, json=data, headers=headers)
+                            st.audio(r.content, format="audio/mp3")
                     with c2:
                         if st.button("💾 存入並訓練", type="primary"):
                             save_memory_fragment(target_role, current_q, st.session_state.trans_text)
