@@ -3,19 +3,25 @@ from supabase import create_client
 from openai import OpenAI
 import random
 import string
-from modules.auth import get_current_user_id
+# 確保引用路徑正確
+from .auth import get_current_user_id 
 
+# 初始化 Supabase
 @st.cache_resource
 def init_supabase():
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
     return create_client(url, key)
 
+# 初始化 OpenAI
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# --- 積分與個人檔案系統 (新增) ---
+# ==========================================
+# 新增功能區：積分與個人檔案系統
+# ==========================================
 
 def get_user_profile(supabase):
+    """取得會員的積分與等級"""
     user_id = get_current_user_id()
     if not user_id: return None
     try:
@@ -27,7 +33,9 @@ def get_user_profile(supabase):
             data = {"user_id": user_id, "resonance_score": 0, "current_tier": "trainee"}
             supabase.table("profiles").insert(data).execute()
             return data
-    except: return {"resonance_score": 0, "current_tier": "trainee"}
+    except Exception as e:
+        print(f"Profile error: {e}")
+        return {"resonance_score": 0, "current_tier": "trainee"}
 
 def add_resonance_score(supabase, user_id, points):
     """增加共鳴值"""
@@ -57,7 +65,9 @@ def submit_feedback(supabase, to_user_id, score, comment):
         # 同步增加積分
         add_resonance_score(supabase, to_user_id, score)
         return True
-    except: return False
+    except Exception as e: 
+        print(f"Feedback error: {e}")
+        return False
 
 def get_feedbacks(supabase):
     """取得給自己的評價"""
@@ -67,7 +77,9 @@ def get_feedbacks(supabase):
         return res.data
     except: return []
 
-# --- 以下維持原有的 RAG 與記憶功能 ---
+# ==========================================
+# 原有功能區：RAG 與記憶
+# ==========================================
 
 def get_embedding(text):
     text = text.replace("\n", " ")
@@ -120,17 +132,17 @@ def save_persona_summary(supabase, role, content):
     except Exception as e: print(e)
 
 def load_persona(supabase, role):
-    user_id = get_current_user_id()
+    # 這裡需要修改：
+    # 如果是訪客模式，讀取的是 owner_id 的資料，而不是當前登入者 (因為訪客沒登入)
+    # 但 get_current_user_id() 在 auth.py 已經處理好這個邏輯了 (會回傳 owner_id)
+    # 所以直接呼叫即可
+    target_id = get_current_user_id() 
+    if not target_id: return None
+
     try:
-        res = supabase.table("personas").select("content").eq("user_id", user_id).eq("role", role).execute()
+        res = supabase.table("personas").select("content").eq("user_id", target_id).eq("role", role).execute()
         return res.data[0]['content'] if res.data else None
     except: return None
-
-def load_all_roles(supabase):
-    try:
-        res = supabase.table("personas").select("role").execute()
-        return [i['role'] for i in res.data]
-    except: return []
 
 def create_share_token(supabase, role):
     user_id = get_current_user_id()
