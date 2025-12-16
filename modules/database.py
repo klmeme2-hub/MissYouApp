@@ -1,163 +1,118 @@
 import streamlit as st
 from supabase import create_client
-from openai import OpenAI
 import random
 import string
-# 確保引用路徑正確
-from .auth import get_current_user_id 
+from datetime import datetime, date
+from .auth import get_current_user_id
 
-# 初始化 Supabase
 @st.cache_resource
 def init_supabase():
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
-    return create_client(url, key)
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
-# 初始化 OpenAI
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
-# ==========================================
-# 新增功能區：積分與個人檔案系統
-# ==========================================
-
-def get_user_profile(supabase):
-    """取得會員的積分與等級"""
-    user_id = get_current_user_id()
+# --- 積分與個人檔案 ---
+def get_user_profile(supabase, user_id=None):
+    if not user_id: user_id = get_current_user_id()
     if not user_id: return None
     try:
         res = supabase.table("profiles").select("*").eq("user_id", user_id).execute()
-        if res.data:
-            return res.data[0]
+        if res.data: return res.data[0]
         else:
-            # 如果沒有檔案，初始化一個
-            data = {"user_id": user_id, "resonance_score": 0, "current_tier": "trainee"}
+            # 初始化
+            data = {"user_id": user_id, "xp": 0, "energy": 30, "tier": "basic", "last_interaction_date": str(date.today())}
             supabase.table("profiles").insert(data).execute()
             return data
-    except Exception as e:
-        print(f"Profile error: {e}")
-        return {"resonance_score": 0, "current_tier": "trainee"}
+    except: return {"xp": 0, "energy": 30, "tier": "basic"}
 
-def add_resonance_score(supabase, user_id, points):
-    """增加共鳴值"""
+def update_profile_stats(supabase, user_id, xp_delta=0, energy_delta=0, log_reason=""):
     try:
-        # 先取得目前分數
-        res = supabase.table("profiles").select("resonance_score").eq("user_id", user_id).execute()
-        current = res.data[0]['resonance_score'] if res.data else 0
-        new_score = current + points
+        # 使用 RPC 或直接更新 (這裡簡化為直接更新，高併發建議用 RPC)
+        profile = get_user_profile(supabase, user_id)
+        new_xp = max(0, profile.get('xp', 0) + xp_delta)
+        new_energy = max(0, profile.get('energy', 0) + energy_delta)
         
-        # 更新分數
-        supabase.table("profiles").update({"resonance_score": new_score}).eq("user_id", user_id).execute()
-        return new_score
-    except Exception as e:
-        print(f"Score update error: {e}")
-        return 0
-
-def submit_feedback(supabase, to_user_id, score, comment):
-    """提交朋友的評價"""
-    try:
-        data = {
-            "to_user_id": to_user_id,
-            "score": score,
-            "comment": comment
-        }
-        supabase.table("feedbacks").insert(data).execute()
+        supabase.table("profiles").update({"xp": new_xp, "energy": new_energy}).eq("user_id", user_id).execute()
         
-        # 同步增加積分
-        add_resonance_score(supabase, to_user_id, score)
+        if log_reason:
+            supabase.table("transaction_logs").insert({
+                "user_id": user_id, "amount": xp_delta if xp_delta != 0 else energy_delta, "reason": log_reason
+            }).execute()
         return True
-    except Exception as e: 
-        print(f"Feedback error: {e}")
-        return False
+    except: return False
 
-def get_feedbacks(supabase):
-    """取得給自己的評價"""
-    user_id = get_current_user_id()
+def check_daily_interaction(supabase, user_id):
+    """電子雞邏輯：親友登入時觸發"""
     try:
-        res = supabase.table("feedbacks").select("*").eq("to_user_id", user_id).order('created_at', desc=True).execute()
-        return res.data
-    except: return []
+        profile = get_user_profile(supabase, user_id)
+        last_str = profile.get('last_interaction_date', str(date.today()))
+        last_date = datetime.strptime(last_str, "%Y-%m-%d").date()
+        today = date.today()
+        
+        if last_date < today:
+            days_diff = (today - last_date).days
+            penalty = max(0, days_diff - 1) # 沒來的日子才扣
+            
+            # 扣除缺席點數 + 今日簽到獎勵(+1)
+            net_change = 1 - penalty
+            update_profile_stats(supabase, user_id, energy_delta=net_change, log_reason=f"每日結算(缺席{penalty}天)")
+            
+            supabase.table("profiles").update({"last_interaction_date": str(today)}).eq("user_id", user_id).execute()
+            return f"日安！今日能量 +1" + (f" (已扣除缺席 {penalty} 點)" if penalty > 0 else "")
+    except: return None
 
-# ==========================================
-# 原有功能區：RAG 與記憶
-# ==========================================
-
-def get_embedding(text):
-    text = text.replace("\n", " ")
-    return client.embeddings.create(input=[text], model="text-embedding-3-small").data[0].embedding
-
-def get_memories_by_role(supabase, role):
-    user_id = get_current_user_id()
+def upgrade_tier(supabase, user_id, new_tier, energy_bonus=0, xp_bonus=0):
     try:
-        response = supabase.table("memories").select("*").eq("user_id", user_id).eq("role", role).order('id', desc=True).execute()
-        return response.data
-    except: return []
+        update_profile_stats(supabase, user_id, xp_delta=xp_bonus, energy_delta=energy_bonus, log_reason=f"付費升級 {new_tier}")
+        supabase.table("profiles").update({"tier": new_tier}).eq("user_id", user_id).execute()
+        return True
+    except: return False
 
+# --- 記憶與人設 (RAG) ---
 def save_memory_fragment(supabase, role, question, answer):
     user_id = get_current_user_id()
-    if not user_id: return False
-    
-    full_content = f"【關於{question}】：{answer}"
-    try:
-        existing = get_memories_by_role(supabase, role)
-        for mem in existing:
-            if mem['content'].startswith(f"【關於{question}】"):
-                supabase.table("memories").delete().eq("id", mem['id']).execute()
-    except: pass
-    
-    embedding = get_embedding(full_content)
-    data = {"user_id": user_id, "role": role, "content": full_content, "embedding": embedding}
-    supabase.table("memories").insert(data).execute()
+    full = f"【關於{question}】：{answer}"
+    # Google 方案不一定需要 embedding，但為了相容性我們先存文字
+    data = {"user_id": user_id, "role": role, "content": full} 
+    # 這裡省略 embedding，因為 Gemini Flash 可以直接讀大量文字，或是之後再補
+    # 若 table constraint 必填 embedding，可塞個空 list 或 0
+    supabase.table("memories").insert(data).execute() 
     return True
 
-def search_relevant_memories(supabase, role, query_text):
+def get_all_memories_text(supabase, role):
+    """SaaS 升級版：直接撈出該角色所有記憶文本 (給 Gemini 讀)"""
+    user_id = get_current_user_id()
     try:
-        query_vec = get_embedding(query_text)
-        response = supabase.rpc(
-            "match_memories",
-            {"query_embedding": query_vec, "match_threshold": 0.5, "match_count": 3, "search_role": role}
-        ).execute()
-        return "\n".join([item['content'] for item in response.data])
+        res = supabase.table("memories").select("content").eq("user_id", user_id).eq("role", role).execute()
+        return "\n".join([m['content'] for m in res.data])
     except: return ""
 
 def save_persona_summary(supabase, role, content):
     user_id = get_current_user_id()
-    if not user_id: return
     try:
-        res = supabase.table("personas").select("id").eq("user_id", user_id).eq("role", role).execute()
-        if res.data:
-            supabase.table("personas").update({"content": content}).eq("id", res.data[0]['id']).execute()
+        # Upsert logic
+        current = supabase.table("personas").select("id").eq("user_id", user_id).eq("role", role).execute()
+        if current.data:
+            supabase.table("personas").update({"content": content}).eq("id", current.data[0]['id']).execute()
         else:
-            data = {"user_id": user_id, "role": role, "content": content}
-            supabase.table("personas").insert(data).execute()
-    except Exception as e: print(e)
+            supabase.table("personas").insert({"user_id": user_id, "role": role, "content": content}).execute()
+    except: pass
 
 def load_persona(supabase, role):
-    # 這裡需要修改：
-    # 如果是訪客模式，讀取的是 owner_id 的資料，而不是當前登入者 (因為訪客沒登入)
-    # 但 get_current_user_id() 在 auth.py 已經處理好這個邏輯了 (會回傳 owner_id)
-    # 所以直接呼叫即可
-    target_id = get_current_user_id() 
-    if not target_id: return None
-
+    # 取得當前目標ID (若是訪客則取 owner)
+    target_id = get_current_user_id()
     try:
         res = supabase.table("personas").select("content").eq("user_id", target_id).eq("role", role).execute()
         return res.data[0]['content'] if res.data else None
     except: return None
 
+# --- 分享 ---
 def create_share_token(supabase, role):
     user_id = get_current_user_id()
-    try:
-        exist = supabase.table("share_tokens").select("token").eq("user_id", user_id).eq("role", role).execute()
-        if exist.data: return exist.data[0]['token']
-        token = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        data = {"user_id": user_id, "role": role, "token": token}
-        supabase.table("share_tokens").insert(data).execute()
-        return token
-    except: return None
+    token = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    supabase.table("share_tokens").insert({"user_id": user_id, "role": role, "token": token}).execute()
+    return token
 
 def validate_token(supabase, token):
     try:
         res = supabase.table("share_tokens").select("*").eq("token", token).execute()
         if res.data: return res.data[0]
-        return None
     except: return None
