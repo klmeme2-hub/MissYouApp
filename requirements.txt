@@ -5,3 +5,4 @@ supabase
 numpy
 pydub
 google-generativeai
+extra-streamlit-components
