@@ -3,19 +3,20 @@ import json
 import requests
 import io
 import time
+import datetime # <--- 補上這行，解決 NameError
 from openai import OpenAI
 from modules import ui, auth, database, audio, brain, config
 import extra_streamlit_components as stx
 
 # ==========================================
-# 應用程式：想念 (SaaS Beta 2.4 - 邀請卡優化版)
-# 更新內容：角色分類調整、邀請卡按鈕移至頂部、客製化分享文案
+# 應用程式：想念 (SaaS Beta 2.5 - 修復版)
+# 更新內容：補上 datetime 引用，解決 Cookie 報錯
 # ==========================================
 
 st.set_page_config(page_title="想念 - 靈魂刻錄室", page_icon="🤍", layout="wide")
 ui.load_css()
 
-# 1. Cookie Manager
+# 1. 初始化 Cookie 管理器
 cookie_manager = stx.CookieManager()
 
 # 2. 系統檢查
@@ -37,7 +38,6 @@ question_db = load_questions()
 if "user" not in st.session_state: st.session_state.user = None
 if "guest_data" not in st.session_state: st.session_state.guest_data = None
 if "step" not in st.session_state: st.session_state.step = 1
-# 新增：控制邀請卡顯示狀態
 if "show_invite" not in st.session_state: st.session_state.show_invite = False 
 
 # ==========================================
@@ -49,11 +49,8 @@ if "show_invite" not in st.session_state: st.session_state.show_invite = False
 # ------------------------------------------
 if st.session_state.guest_data:
     owner_data = st.session_state.guest_data
-    role_key = owner_data['role'] # 這裡是後台代號 (friend, partner...)
+    role_key = owner_data['role'] 
     owner_id = owner_data['owner_id']
-    
-    # 為了顯示漂亮的角色名稱，我們反查一下 (或是直接顯示暱稱)
-    # 這裡簡化處理，直接讀取 database 裡存的 member_nickname 最準
     
     profile = database.get_user_profile(supabase, user_id=owner_id)
     tier = profile.get('tier', 'basic')
@@ -175,7 +172,6 @@ elif not st.session_state.user:
 # 情境 C: 會員後台
 # ------------------------------------------
 else:
-    import datetime # for cookie date
     profile = database.get_user_profile(supabase)
     tier = profile.get('tier', 'basic')
     xp = profile.get('xp', 0)
@@ -193,47 +189,30 @@ else:
     engine_type = audio.get_tts_engine_type(profile)
     ui.render_status_bar(tier, energy, xp, engine_type)
     
-    # ---------------------------------------
-    # 頂部控制台 (角色選擇 + 邀請卡生成)
-    # ---------------------------------------
-    
-    # 權限檢查：是否解鎖
+    # 頂部選單 (權限控制)
     is_unlocked = True
     if tier == 'basic' and xp < 20: is_unlocked = False
     
-    # 佈局：70% 選單 | 30% 按鈕
     c_role, c_btn = st.columns([7, 3])
-    
     with c_role:
-        # 下拉選單顯示中文，但變數存的是 key (friend, partner...)
         role_options = list(config.ROLE_MAPPING.keys())
-        # 如果未解鎖，只能選朋友
-        if not is_unlocked: 
-            # 找到「朋友」在列表中的 index，強制只顯示朋友或預設選朋友
-            # 這裡簡化：如果未解鎖，雖然選單有，但下方 Tab 會擋
-            pass
-            
         selected_role_display = st.selectbox("選擇對象", role_options, label_visibility="collapsed")
-        target_role = config.ROLE_MAPPING[selected_role_display] # 轉成英文代號
+        target_role = config.ROLE_MAPPING[selected_role_display]
     
     with c_btn:
         if st.button("🎁 生成邀請卡", type="primary", use_container_width=True):
             st.session_state.show_invite = True
-            # 同時生成 token
             token = database.create_share_token(supabase, target_role)
             st.session_state.current_token = token
 
-    # 權限鎖定提示
     if not is_unlocked and target_role != "friend":
         st.info("🔒 累積 **20 點 XP** 或 **付費升級**，即可解鎖此角色。")
 
-    # --- 邀請卡顯示區塊 (動態彈出) ---
+    # 邀請卡彈窗
     if st.session_state.show_invite:
         token = st.session_state.get("current_token", "LOADING")
-        app_url = "https://missyou.streamlit.app" # 請替換
+        app_url = "https://missyou.streamlit.app"
         
-        # 根據角色決定文案
-        copy_template = ""
         if target_role == "friend":
             title = "嘿！賭你分不出來！"
             body = f"欸，最近 AI 真的太誇張了！🤯\n我訓練了一個我的「數位分身」，連我的口頭禪都學會了。\n你去聽聽看，打個分數，看能不能騙過你的耳朵？"
@@ -250,7 +229,7 @@ else:
             title = "給親愛的長輩：換我來陪您"
             body = f"謝謝您們辛苦把我養大。\n我知道我有時候工作忙，沒辦法天天陪在您身邊。\n所以我用現在的科技，把我的聲音留在了這裡。\n想我的時候，只要點開這裡，我就會像在家一樣，陪您聊天。"
             ps = "(您只要負責講話就好，我會聽 ❤️)"
-        else: # Fallback
+        else:
             title = "來自我的數位分身"
             body = "我在這裡留下了一些聲音，希望能陪你聊聊天。"
             ps = ""
@@ -261,12 +240,10 @@ else:
         with st.container():
             st.success(f"### 💌 您的數位邀請卡已生成 ({selected_role_display})")
             c_text, c_copy = st.columns([4, 1])
-            with c_text:
-                st.code(full_copy, language="text")
+            with c_text: st.code(full_copy, language="text")
             with c_copy:
                 st.button("❌ 關閉", on_click=lambda: st.session_state.update({"show_invite": False}))
-                # Streamlit 目前無法直接寫剪貼簿，通常引導使用者按右上角複製icon
-                st.caption("👆 點擊代碼區塊右上角的圖示即可複製")
+                st.caption("👆 點擊右上角複製")
         st.markdown("---")
 
     st.divider()
@@ -304,13 +281,11 @@ else:
 
         elif st.session_state.step in [2, 3, 4]:
             scripts = {
-                2: ("刻錄「安慰語氣」", "欸，我知道你現在心裡一定超悶的啦..."), # 省略長文，請保留您的完整腳本
-                3: ("刻錄「鼓勵語氣」", "哇塞！你真的決定要開始學那個東西了喔？..."),
-                4: ("刻錄「輕鬆詼諧語氣」", "我跟你說，我昨天去圖書館 K 書，真的糗死了啦！...")
+                2: ("刻錄「安慰語氣」", "欸，我知道你現在心裡一定超悶的啦，感覺是不是付出的心血都白費了？吼，沒關係啦，真的沒關係，讓我抱一下。你看你齁，把自己逼得那麼緊，早就累壞了。我們又不是機器人，偶爾搞砸一下是很正常的，誰沒有低潮的時候？失敗就失敗啊，它只是在提醒你：你該休息了。我們現在什麼都不要想，先找個地方坐下來。我會在這裡陪著你，等你準備好了，我們再一起慢慢來，好不好？你已經做得很好了。"),
+                3: ("刻錄「鼓勵語氣」", "哇塞！你真的決定要開始學那個東西了喔？超酷的啦！我知道一開始會很難、很煩，那介面看起來像外星文，沒錯啦！但你想想看，等你真的學會了，那個成就感會有多爆炸？不要去想還有多少東西沒學，就先專心搞定眼前這個小任務就好。每天進步一點點，慢慢累積起來就會是超巨大的力量！相信我，你的腦袋比你想像中靈光多了！衝啊！我等你做出第一個成品，我請客，隨便你點！"),
+                4: ("刻錄「輕鬆詼諧語氣」", "我跟你說，我昨天去圖書館 K 書，真的糗死了啦！我把水壺放在桌上，想說要裝一下文青對不對？結果我一個不小心，那個金屬水壺直接滾到地上，發出那種「匡啷匡啷匡啷」超大聲的聲音！整個圖書館的人，你知道嗎？全部都抬頭看著我！我當時真的超想假裝是睡著了，然後從地上爬起來！那個聲音迴盪了五秒鐘欸！搞得我後來待不下去，我就直接收東西逃走了！")
             }
-            # 這裡為了縮短代碼顯示，實際請填入完整腳本
-            
-            title, content = scripts.get(st.session_state.step, ("標題", "腳本內容"))
+            title, content = scripts.get(st.session_state.step, ("標題", "內容"))
             st.subheader(title)
             st.markdown(f'<div class="script-box">{content}</div>', unsafe_allow_html=True)
             rec = st.audio_input("請朗讀上方文字", key=f"s{st.session_state.step}")
@@ -357,7 +332,7 @@ else:
         else:
             c1, c2 = st.columns(2)
             with c1: mn = st.text_input("您的名字", value="爸爸")
-            with c2: nk = st.text_input("專屬暱稱 (AI將用此稱呼對方)", placeholder="例如：寶貝")
+            with c2: nk = st.text_input("專屬暱稱 (請輸入發音)", placeholder="例如：寶貝")
             up = st.file_uploader("上傳紀錄", type="txt")
             if st.button("✨ 更新人設") and up:
                 with st.spinner("分析中..."):
@@ -418,8 +393,6 @@ else:
     with tab5:
         if not is_unlocked and target_role != "friend": st.warning("🔒 需升級或累積 20 XP")
         else:
-            # 這裡呼叫 tab_config 的邏輯，或者直接寫在這裡
-            # 為了方便整合，這裡直接寫出簡易版，請根據需求微調
             st.subheader("🎯 完美暱稱與身分設定")
             
             c1, c2 = st.columns(2)
@@ -427,8 +400,6 @@ else:
                 st.markdown("#### 步驟 1：身分設定 (文字)")
                 my_nick = st.text_input(f"請輸入 {target_role} 平常怎麼叫您？", placeholder="例如：老公、阿強")
                 if st.button("💾 儲存身分"):
-                    # 這裡為了簡化，直接更新 persona 的 member_nickname 欄位
-                    # 實際應該先 load 再 update，避免覆蓋 content
                     p = database.load_persona(supabase, target_role)
                     content = p['content'] if p else "尚未設定人設"
                     database.save_persona_summary(supabase, target_role, content, member_nickname=my_nick)
