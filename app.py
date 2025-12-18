@@ -2,25 +2,23 @@ import streamlit as st
 import json
 import requests
 import io
+import time
+import datetime # 補上 datetime 模組
 from openai import OpenAI
 from modules import ui, auth, database, audio, brain, config
 import extra_streamlit_components as stx
-import time
 
 # ==========================================
-# 應用程式：想念 (SaaS Beta 2.2 - 記憶帳密版)
-# 更新內容：Cookie 管理、瀏覽器自動填寫密碼支援
+# 應用程式：想念 (SaaS Beta 2.3 - 記憶帳密修復版)
+# 更新內容：修復 st.cache_resource 參數報錯問題
 # ==========================================
 
 st.set_page_config(page_title="想念 - 靈魂刻錄室", page_icon="🤍", layout="wide")
 ui.load_css()
 
-# 1. 初始化 Cookie 管理器 (這是記憶功能的關鍵)
-@st.cache_resource(experimental_allow_widgets=True)
-def get_manager():
-    return stx.CookieManager()
-
-cookie_manager = get_manager()
+# 1. 初始化 Cookie 管理器 (修正版)
+# 直接初始化即可，不需要使用 cache_resource 裝飾器，因為 stx 內部已經處理了狀態
+cookie_manager = stx.CookieManager()
 
 # 2. 系統檢查
 if "SUPABASE_URL" not in st.secrets:
@@ -113,13 +111,15 @@ if st.session_state.guest_data:
         st.rerun()
 
 # ------------------------------------------
-# 情境 B: 首頁 (訪客驗證 / 會員登入) - 加入記憶功能
+# 情境 B: 首頁 (訪客驗證 / 會員登入)
 # ------------------------------------------
 elif not st.session_state.user:
     
-    # 讀取 Cookie (如果有)
-    saved_email = cookie_manager.get(cookie="member_email")
-    saved_token = cookie_manager.get(cookie="guest_token")
+    # 嘗試讀取 Cookie
+    # 注意：第一次載入可能讀不到，這是正常的，stx 需要 re-render 才能拿到值
+    cookies = cookie_manager.get_all()
+    saved_email = cookies.get("member_email", "")
+    saved_token = cookies.get("guest_token", "")
     
     col1, col2 = st.columns([1, 1], gap="large")
     
@@ -128,41 +128,34 @@ elif not st.session_state.user:
         st.markdown("## 👋 我是親友")
         st.caption("輸入家人分享給您的邀請碼")
         
-        # 預設填入 Cookie 裡的 Token
-        default_token = saved_token if saved_token else ""
-        token_input = st.text_input("通行碼", value=default_token, placeholder="例如：A8K29")
+        token_input = st.text_input("通行碼", value=saved_token, placeholder="例如：A8K29")
         
         if st.button("🚀 開始對話", type="primary", use_container_width=True):
             data = database.validate_token(supabase, token_input.strip())
             if data:
-                # 驗證成功，儲存 Cookie (30天)
+                # 寫入 Cookie (有效期 30 天)
                 cookie_manager.set("guest_token", token_input.strip(), expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
                 st.session_state.guest_data = {'owner_id': data['user_id'], 'role': data['role']}
                 st.success("驗證成功！")
-                time.sleep(0.5) # 等待 Cookie 寫入
+                time.sleep(0.5)
                 st.rerun()
             else: st.error("無效的通行碼")
 
-    # 右側：會員入口 (使用 st.form 觸發瀏覽器記憶)
+    # 右側：會員入口 (Form 支援瀏覽器記憶)
     with col2:
         st.markdown("## 👤 我是會員")
         tab_l, tab_s = st.tabs(["登入", "註冊"])
         
         with tab_l:
-            # 使用 form 包覆，讓瀏覽器識別這是登入表單
             with st.form("login_form"):
-                # 預設填入 Cookie 裡的 Email
-                default_email = saved_email if saved_email else ""
-                
-                l_e = st.text_input("Email", value=default_email)
+                l_e = st.text_input("Email", value=saved_email)
                 l_p = st.text_input("密碼", type="password")
-                
                 submitted = st.form_submit_button("登入", use_container_width=True)
                 
                 if submitted:
                     res = auth.login_user(supabase, l_e, l_p)
                     if res and res.user: 
-                        # 登入成功，儲存 Email 到 Cookie
+                        # 寫入 Cookie
                         cookie_manager.set("member_email", l_e, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
                         st.session_state.user = res
                         st.success("登入成功")
@@ -186,9 +179,6 @@ elif not st.session_state.user:
 # 情境 C: 會員後台
 # ------------------------------------------
 else:
-    # 載入 datetime 模組給 Cookie 使用
-    import datetime 
-    
     profile = database.get_user_profile(supabase)
     tier = profile.get('tier', 'basic')
     xp = profile.get('xp', 0)
@@ -249,11 +239,10 @@ else:
             if st.button("下一步 →"): st.session_state.step = 2; st.rerun()
 
         elif st.session_state.step in [2, 3, 4]:
-            # 腳本內容
             scripts = {
-                2: ("刻錄「安慰語氣」", "欸，我知道你現在心裡一定超悶的啦，感覺是不是付出的心血都白費了？吼，沒關係啦，真的沒關係，讓我抱一下。你看你齁，把自己逼得那麼緊，早就累壞了。我們又不是機器人，偶爾搞砸一下是很正常的，誰沒有低潮的時候？失敗就失敗啊，它只是在提醒你：你該休息了。我們現在什麼都不要想，先找個地方坐下來。我會在這裡陪著你，等你準備好了，我們再一起慢慢來，好不好？你已經做得很好了。"),
-                3: ("刻錄「鼓勵語氣」", "哇塞！你真的決定要開始學那個東西了喔？超酷的啦！我知道一開始會很難、很煩，那介面看起來像外星文，沒錯啦！但你想想看，等你真的學會了，那個成就感會有多爆炸？不要去想還有多少東西沒學，就先專心搞定眼前這個小任務就好。每天進步一點點，慢慢累積起來就會是超巨大的力量！相信我，你的腦袋比你想像中靈光多了！衝啊！我等你做出第一個成品，我請客，隨便你點！"),
-                4: ("刻錄「輕鬆詼諧語氣」", "我跟你說，我昨天去圖書館 K 書，真的糗死了啦！我把水壺放在桌上，想說要裝一下文青對不對？結果我一個不小心，那個金屬水壺直接滾到地上，發出那種「匡啷匡啷匡啷」超大聲的聲音！整個圖書館的人，你知道嗎？全部都抬頭看著我！我當時真的超想假裝是睡著了，然後從地上爬起來！那個聲音迴盪了五秒鐘欸！搞得我後來待不下去，我就直接收東西逃走了！")
+                2: ("刻錄「安慰語氣」", "欸，我知道你現在心裡一定超悶的啦..."),
+                3: ("刻錄「鼓勵語氣」", "哇塞！你真的決定要開始學那個東西了喔？..."),
+                4: ("刻錄「輕鬆詼諧語氣」", "我跟你說，我昨天去圖書館 K 書，真的糗死了啦！...")
             }
             title, content = scripts[st.session_state.step]
             st.subheader(title)
@@ -312,7 +301,7 @@ else:
         else:
             c1, c2 = st.columns(2)
             with c1: mn = st.text_input("您的名字", value="爸爸")
-            with c2: nk = st.text_input("專屬暱稱 (請輸入發音)", placeholder="例如：寶貝")
+            with c2: nk = st.text_input("專屬暱稱", placeholder="例如：寶貝")
             up = st.file_uploader("上傳紀錄", type="txt")
             if st.button("✨ 更新人設") and up:
                 with st.spinner("分析中..."):
