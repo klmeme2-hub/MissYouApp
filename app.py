@@ -13,6 +13,12 @@ ui.load_css()
 if "SUPABASE_URL" not in st.secrets: st.stop()
 # 修改後 (直接在這裡初始化，不透過 database.py)
 from supabase import create_client
+
+@st.cache_resource
+def init_supabase_local():
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+
+supabase = init_supabase_local()
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 
@@ -107,4 +113,5 @@ else:
     with t3: tab_persona.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp)
     with t4: tab_memory.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp, question_db)
     with t5: tab_config.render(supabase, tier, xp)
+
 
