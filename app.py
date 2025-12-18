@@ -7,7 +7,7 @@ from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory, tab_conf
 
 # 1. UI 設定
 st.set_page_config(page_title="想念 - 靈魂刻錄室", page_icon="🤍", layout="wide")
-ui.load_css()
+# ui.load_css()
 
 # 2. 系統初始化
 if "SUPABASE_URL" not in st.secrets: st.stop()
@@ -113,5 +113,6 @@ else:
     with t3: tab_persona.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp)
     with t4: tab_memory.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp, question_db)
     with t5: tab_config.render(supabase, tier, xp)
+
 
 
