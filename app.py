@@ -11,8 +11,11 @@ ui.load_css()
 
 # 2. 系統初始化
 if "SUPABASE_URL" not in st.secrets: st.stop()
-supabase = database.init_supabase()
+# 修改後 (直接在這裡初始化，不透過 database.py)
+from supabase import create_client
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
+
 
 # 3. 讀取題庫
 @st.cache_data
@@ -104,3 +107,4 @@ else:
     with t3: tab_persona.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp)
     with t4: tab_memory.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp, question_db)
     with t5: tab_config.render(supabase, tier, xp)
+
