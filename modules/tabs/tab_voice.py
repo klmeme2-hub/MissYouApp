@@ -9,8 +9,7 @@ def render(supabase, client, user_id, target_role, tier):
     
     st.markdown("---")
 
-    # 為了顯示漂亮的中文角色名稱，我們做個反向查找或直接定義
-    # 這裡直接定義顯示用的名稱映射
+    # 角色中文顯示對照
     ROLE_DISPLAY_NAMES = {
         "friend": "朋友/死黨",
         "partner": "妻子/丈夫/伴侶",
@@ -20,7 +19,6 @@ def render(supabase, client, user_id, target_role, tier):
         "elder": "長輩/父母",
         "others": "親友"
     }
-    # 嘗試取得中文顯示名，若無則用 target_role
     role_zh = ROLE_DISPLAY_NAMES.get(target_role, target_role)
 
     # ==========================================
@@ -28,13 +26,12 @@ def render(supabase, client, user_id, target_role, tier):
     # ==========================================
     if st.session_state.step == 1:
         
-        # --- 根據角色決定標題 ---
+        # --- 情境 A: 朋友/死黨 ---
         if target_role == "friend":
             st.subheader("STEP 1: 口頭禪炸彈 💣")
             ai_demo_text = "你覺得這個AI分身，跟我本尊有幾分像呢？"
-            audio_type_tag = "opening" # 朋友存為開場白
             
-            # 文案設定
+            # 文案
             id_label = "1. 設定身分"
             id_help = f"請輸入 {role_zh} 平常 **怎麼叫您**？ (這會顯示在通話介面上)"
             id_placeholder = "例如：阿強、東哥、小娟"
@@ -42,16 +39,13 @@ def render(supabase, client, user_id, target_role, tier):
             sound_label = "2. 錄製開場白"
             sound_desc = "留一句話給換帖的拜把兄弟，讓他接起電話寒毛直豎。"
             sound_hint = "👉 **建議錄製：** 「買霸未？」 或 「好久不見！！」 或 您的招牌口頭禪"
-            
-            # 朋友模式不需要輸入「對方暱稱」，因為主要是惡作劇
-            target_nick_input = None 
 
+        # --- 情境 B: 家人/伴侶 (已移除暱稱文字輸入框) ---
         else:
             st.subheader("STEP 1: 輕輕喚你的名 ❤️")
             ai_demo_text = "想我嗎？"
-            audio_type_tag = "nickname" # 家人存為暱稱(兼開場白)
             
-            # 文案設定
+            # 文案
             id_label = "1. 設定身分"
             id_help = f"請輸入 {role_zh} 平常 **怎麼叫您**？ (這會顯示在通話介面上)"
             id_placeholder = "例如：老公、黑狗爸、老媽"
@@ -69,28 +63,15 @@ def render(supabase, client, user_id, target_role, tier):
         
         st.markdown("") # 間距
         
-        # 區塊 2: 錄音 (含暱稱文字輸入-僅家人模式)
+        # 區塊 2: 錄音 (直接顯示錄音按鈕，不需文字框)
         st.markdown(f"##### {sound_label}")
         st.write(sound_desc)
-        
-        # 如果是家人模式，多一個欄位輸入「對方暱稱文字」(給 AI Prompt 用)
-        if target_role != "friend":
-            col_in1, col_in2 = st.columns([1, 2])
-            with col_in1:
-                st.caption("請輸入這句呼喚的文字：")
-                target_nick_input = st.text_input("暱稱文字", placeholder="例如：老婆", label_visibility="collapsed", key="s1_tn")
-            with col_in2:
-                st.caption(sound_hint)
-                rec = st.audio_input("錄音 (2-3秒)", key="s1_rec")
-        else:
-            # 朋友模式直接錄音
-            st.info(sound_hint)
-            rec = st.audio_input("錄音 (2-3秒)", key="s1_rec")
-            target_nick_input = "朋友" # 預設值
+        st.caption(sound_hint)
+        rec = st.audio_input("錄音 (2-3秒)", key="s1_rec")
 
         # --- 存檔邏輯 ---
-        # 條件：必須有錄音 + 必須有輸入身分 + (如果是家人，必須輸入對方暱稱)
-        can_save = rec and member_nick and target_nick_input
+        # 條件：必須有錄音 + 必須有輸入身分
+        can_save = rec and member_nick
         
         if can_save:
             if st.button("💾 上傳並試聽", type="primary"):
@@ -98,23 +79,21 @@ def render(supabase, client, user_id, target_role, tier):
                     audio_bytes = rec.read()
                     
                     # 1. 儲存身分與人設
-                    # 先讀取舊人設
                     p = database.load_persona(supabase, target_role)
                     content = p['content'] if p else "尚未設定人設"
-                    
-                    # 如果是家人，我們順便把「對方暱稱」更新進 System Prompt 描述裡 (雖不直接改 Prompt，但可存入備註或保留)
-                    # 這裡主要更新 member_nickname
+                    # 更新 member_nickname
                     database.save_persona_summary(supabase, target_role, content, member_nickname=member_nick)
 
                     # 2. 儲存音檔
                     if target_role == "friend":
+                        # 朋友模式：只存為 opening (開場白)
                         audio.upload_audio_file(supabase, target_role, audio_bytes, "opening")
                     else:
-                        # 家人模式：同時存為 nickname (拼接用) 和 opening (開場檢查用)
+                        # 家人模式：同時存為 nickname (對話拼接用) 和 opening (開場檢查用)
                         audio.upload_audio_file(supabase, target_role, audio_bytes, "nickname")
                         audio.upload_audio_file(supabase, target_role, audio_bytes, "opening")
                     
-                    # 3. 訓練 AI
+                    # 3. 訓練 AI Voice ID
                     rec.seek(0)
                     audio.train_voice_sample(rec.read())
                     
