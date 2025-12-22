@@ -12,7 +12,7 @@ import extra_streamlit_components as stx
 # ==========================================
 
 # 1. UI 設定 (寬螢幕 + 深色模式)
-st.set_page_config(page_title="想念", page_icon="📞", layout="wide")
+st.set_page_config(page_title="想念 - 靈魂刻錄室", page_icon="🤍", layout="centered")
 ui.load_css()
 
 # 2. 初始化 Cookie 與 系統
@@ -381,3 +381,4 @@ else:
         tab_memory.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp, question_db)
     elif selected_tab == "🎯 完美暱稱":
         tab_config.render(supabase, tier, xp)
+
