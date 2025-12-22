@@ -2,9 +2,6 @@ import streamlit as st
 from modules import audio, database
 
 def render(supabase, client, user_id, target_role, tier):
-    """
-    參數已更新：移除 keys，新增 tier (用於試聽時判斷音質)
-    """
     
     # 顯示圓形進度條
     from modules.ui import render_stepper
@@ -18,52 +15,70 @@ def render(supabase, client, user_id, target_role, tier):
     if st.session_state.step == 1:
         st.subheader("STEP 1: 口頭禪炸彈 💣")
         
-        # 根據角色顯示不同引導
+        # --- 情境 A: 朋友/死黨 (新版介面) ---
         if target_role == "friend":
-            st.info("留一句話給換帖的拜把兄弟，讓他接起電話寒毛直豎，像到發抖。")
-            st.markdown("**建議錄製：** 「喂～大胖，賈霸未？」 或 「搞什麼鬼～」")
-            lbl = "輸入這句口頭禪的文字"
-            hint = "例如：喂～大胖，賈霸未？"
+            # 1. 身分設定 (原 Tab 5 功能移至於此)
+            st.markdown("##### 1. 設定身分")
+            st.caption("請輸入 朋友/死黨 平常 **怎麼叫您**？這會顯示在通話介面上。")
+            member_nick = st.text_input("標籤", placeholder="例如：阿強、東哥、小娟", label_visibility="collapsed", key="step1_mn")
+            
+            st.markdown("") # 空行
+            
+            # 2. 錄製口頭禪
+            st.markdown("##### 2. 錄製開場白")
+            st.write("留一句話給換帖的拜把兄弟/好閨密，讓他接起電話寒毛直豎，像到發抖。")
+            
+            st.info("👉 **建議錄製：** 「買霸未？」 或 「好久不見！！」 或 您的招牌口頭禪")
+            
+            # 朋友模式下，我們不需要輸入「口頭禪文字」，因為這段錄音純粹是開場白，不用於文字生成
+            # 但為了程式邏輯變數統一，我們設一個變數為 None
+            text_input_val = member_nick # 用這個來當作檢查是否可存檔的依據
+            ai_demo_text = "你覺得這個AI分身，跟我本尊有幾分像呢？"
+
+        # --- 情境 B: 家人/伴侶 (維持原案) ---
         else:
             st.info("錄製最自然的親密呼喚 (開場白)。")
             st.markdown("**建議錄製：** 「老婆～」 或 「親愛的～」")
-            lbl = "輸入這句暱稱的文字"
-            hint = "例如：老婆～"
+            text_input_val = st.text_input("輸入這句暱稱的文字", placeholder="例如：老婆～", key="step1_text")
+            member_nick = None # 家人模式這裡暫不強制設定會員名字
+            ai_demo_text = "想我嗎？"
 
-        nickname_text = st.text_input(lbl, placeholder=hint, key="step1_text")
+        # --- 共用錄音區 ---
         rec = st.audio_input("錄音 (建議 2-3 秒)", key="step1_rec")
         
-        if rec and nickname_text:
-            if st.button("💾 上傳並試聽"):
+        # --- 存檔邏輯 ---
+        # 條件：要有錄音，且 (如果是朋友模式要有輸入名字 OR 如果是家人模式要有輸入暱稱)
+        can_save = rec and text_input_val
+        
+        if can_save:
+            if st.button("💾 上傳並試聽", type="primary"):
                 with st.spinner("處理中..."):
                     audio_bytes = rec.read()
                     
-                    # 1. 存入 Storage (作為真實拼接素材 - 開場白)
-                    # 這裡統一存為 'opening'，因為這是用來接電話的第一句話
+                    # 1. [新功能] 如果是朋友模式，同步儲存「會員暱稱」到資料庫
+                    if target_role == "friend" and member_nick:
+                        # 先讀取舊人設以免覆蓋 content，若無則建新的
+                        p = database.load_persona(supabase, target_role)
+                        content = p['content'] if p else "尚未設定人設"
+                        # 寫入 member_nickname
+                        database.save_persona_summary(supabase, target_role, content, member_nickname=member_nick)
+
+                    # 2. 存入 Storage (作為真實拼接素材 - 開場白)
                     audio.upload_audio_file(supabase, target_role, audio_bytes, "opening")
                     
-                    # 2. 訓練 AI Voice ID (同時也讓 AI 學習這個聲音)
+                    # 3. 訓練 AI Voice ID
                     rec.seek(0)
                     audio.train_voice_sample(rec.read())
                     
-                    # 3. 獎勵積分
+                    # 4. 獎勵積分
                     database.update_profile_stats(supabase, user_id, xp_delta=1, log_reason="完成Step1")
                     
-                    # 4. 試聽拼接
-                    # 根據角色決定 AI 要接什麼話
-                    if target_role == "friend":
-                        ai_txt = "你覺得這個AI分身，跟我本尊有幾分像呢？"
-                    else:
-                        ai_txt = "想我嗎？"
-                        
-                    # 生成 AI 語音 (使用 tier 判斷音質)
-                    ai_wav = audio.generate_speech(ai_txt, tier)
-                    
-                    # 拼接：真人開場 + AI 接話
+                    # 5. 試聽拼接
+                    ai_wav = audio.generate_speech(ai_demo_text, tier)
                     final = audio.merge_audio_clips(audio_bytes, ai_wav)
                     
                     st.audio(final, format="audio/mp3")
-                    st.success("聲紋已建立！獲得 1 點共鳴值 (XP)")
+                    st.success("設定已儲存！獲得 1 點共鳴值 (XP)")
 
         if st.button("下一步 →"):
             st.session_state.step = 2
