@@ -12,8 +12,8 @@ import extra_streamlit_components as stx
 # 更新內容：移除 Sidebar，將登出功能移至頂部右上角
 # ==========================================
 
-# 1. UI 設定 (置中佈局)
-st.set_page_config(page_title="想念 - 靈魂刻錄室", page_icon="🤍", layout="centered")
+# 1. UI 設定 (更換新標題)
+st.set_page_config(page_title="MetaVoice - 元宇宙聲紋站", page_icon="🌌", layout="centered")
 ui.load_css()
 
 # 2. 初始化 Cookie 與 系統
@@ -224,12 +224,13 @@ else:
         st.title("🎙️ 靈魂刻錄室")
         
     with col_head_user:
-        # 靠右顯示使用者 Email 與 登出按鈕
-        st.markdown(f"""
-        <div style='text-align:right; margin-bottom:5px; color:#888; font-size:14px;'>
-            👤 {st.session_state.user.user.email}
-        </div>
-        """, unsafe_allow_html=True)
+    # 這裡修改標題顯示 (新文案)
+    st.markdown("""
+    <div style='text-align:center; margin-bottom:30px;'>
+        <h1 style='font-size: 40px; margin-bottom:0; text-shadow: 0 0 20px rgba(124, 77, 255, 0.5);'>🌌 元宇宙聲紋站</h1>
+        <p style='color:#AAA; font-size:16px; margin-top:5px;'>元宇宙的第一張通行證：鎸刻你的數位聲紋</p>
+    </div>
+    """, unsafe_allow_html=True)
         if st.button("登出", key="logout_btn", use_container_width=True):
             supabase.auth.sign_out()
             st.session_state.user = None
@@ -291,3 +292,4 @@ else:
     with t3: tab_persona.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp)
     with t4: tab_memory.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp, question_db)
     with t5: tab_config.render(supabase, tier, xp)
+
