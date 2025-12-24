@@ -192,7 +192,7 @@ elif not st.session_state.user:
                 else: st.error("失敗")
 
 # ------------------------------------------
-# 情境 C: 會員後台 (Header UI 修復)
+# 情境 C: 會員後台 (回歸穩定排版)
 # ------------------------------------------
 else:
     profile = database.get_user_profile(supabase)
@@ -200,49 +200,43 @@ else:
     xp = profile.get('xp', 0)
     energy = profile.get('energy', 30)
     
-    # 1. 頂部 Header 新佈局 (CSS 對齊)
-    # 使用 columns 分隔：左邊標題，右邊用戶資訊
-    col_head_main, col_head_info = st.columns([7, 3])
+    # 1. 頂部 Header：改用標準 Columns 排版
+    # 左邊 (Title) : 中間 (空) : 右邊 (UserInfo)
+    c1, c2 = st.columns([7, 3])
     
-    with col_head_main:
-        st.markdown("""
-        <div class="header-title">
-            <h1>🌌 元宇宙聲紋站</h1>
-            <p class="header-subtitle">元宇宙的第一張通行證：鎸刻你的數位聲紋</p>
-        </div>
-        """, unsafe_allow_html=True)
+    with c1:
+        st.title("🌌 元宇宙聲紋站")
+        st.caption("元宇宙的第一張通行證：鎸刻你的數位聲紋")
         
-    with col_head_info:
-        # 使用 CSS class 'user-info-container' 讓內容並排對齊
-        st.markdown(f"""
-        <div class="user-info-container">
-            <span class="user-email">{st.session_state.user.user.email}</span>
-        </div>
-        """, unsafe_allow_html=True)
-        # 登出按鈕不能放在 markdown 裡，只能盡量靠右
-        # 為了跟 email 並排，我們可以利用 columns 再切一次，但為了 CSS 方便，按鈕直接放右邊
+    with c2:
+        # 右上角資訊區：使用 container 包裹
         with st.container():
-            # 這裡使用一個空的 column 推擠，或者直接放按鈕
-            c_null, c_btn = st.columns([1, 1])
-            with c_btn:
-                if st.button("登出", key="logout_btn", use_container_width=True):
-                    supabase.auth.sign_out()
-                    st.session_state.user = None
-                    st.rerun()
+            st.markdown(f"<div style='text-align:right; color:#888; margin-bottom:5px;'>{st.session_state.user.user.email}</div>", unsafe_allow_html=True)
+            # 按鈕強制填滿寬度，看起來比較整齊
+            if st.button("登出", use_container_width=True):
+                supabase.auth.sign_out()
+                st.session_state.user = None
+                st.rerun()
+    
+    st.divider()
 
     # 2. 狀態列
     ui.render_status_bar(tier, energy, xp, audio.get_tts_engine_type(profile))
     
-    # 3. 角色與分享
+    # 3. 角色與邀請卡
     allowed = ["朋友/死黨"]
     if tier != 'basic' or xp >= 20: allowed = list(config.ROLE_MAPPING.keys())
     
-    c_role, c_btn = st.columns([7, 3])
-    with c_role:
-        disp_role = st.selectbox("選擇對象", allowed, label_visibility="collapsed")
+    col_select, col_btn = st.columns([7, 3])
+    
+    with col_select:
+        disp_role = st.selectbox("選擇對象", allowed)
         target_role = config.ROLE_MAPPING[disp_role]
-    with c_btn:
-        has_op = audio.get_audio_bytes(supabase, target_role, "opening")
+        
+    with col_btn:
+        # 為了讓按鈕跟選單對齊，加一點空白 spacer (這是 Streamlit 的小缺點)
+        st.write("") 
+        st.write("") 
         if st.button("🎁 生成邀請卡", type="primary", use_container_width=True):
             token = database.create_share_token(supabase, target_role)
             st.session_state.current_token = token
@@ -272,3 +266,4 @@ else:
     with t2: tab_persona.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp)
     with t3: tab_memory.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp, question_db)
     with t4: tab_store.render(supabase, st.session_state.user.user.id, xp)
+
