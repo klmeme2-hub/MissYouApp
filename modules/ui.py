@@ -16,20 +16,18 @@ def load_css():
         }
         
         /* 移除所有預設分隔線 (hr) */
-        hr {
-            display: none !important;
-        }
+        hr { display: none !important; }
         
         /* --- 2. 頂部標題與用戶區 --- */
         .header-title h1 {
-            font-size: 36px !important; /* 主標題 */
+            font-size: 36px !important;
             margin-bottom: 5px !important;
             padding: 0 !important;
             text-shadow: 0 0 15px rgba(124, 77, 255, 0.6);
             line-height: 1.2;
         }
         .header-subtitle {
-            font-size: 18px !important; /* 副標題加大 */
+            font-size: 18px !important;
             color: #CCC !important;
             margin-top: 0px !important;
             margin-bottom: 15px !important;
@@ -52,19 +50,18 @@ def load_css():
             white-space: nowrap;
         }
 
-        /* --- 3. Tab 分頁樣式 (字體加大) --- */
+        /* --- 3. Tab 分頁樣式 --- */
         button[data-baseweb="tab"] div {
-            font-size: 18px !important; /* 與副標題一致 */
+            font-size: 18px !important;
             font-weight: 600 !important;
             padding: 5px 15px !important;
         }
-        /* 選中狀態 */
         button[data-baseweb="tab"][aria-selected="true"] div {
             color: #FF4B4B !important;
             border-bottom-color: #FF4B4B !important;
         }
 
-        /* --- 4. 狀態列 (移除圖示) --- */
+        /* --- 4. 狀態列 --- */
         .status-bar {
             background: linear-gradient(90deg, #1E1E1E 0%, #252525 100%);
             border: 1px solid #333;
@@ -77,7 +74,7 @@ def load_css():
         .status-item { margin-left: 15px; color: #BBB !important; }
         .status-value { color: #FFD700 !important; font-weight: bold; }
 
-        /* --- 5. 圓形進度條 (Stepper) 緊湊版 --- */
+        /* --- 5. 圓形進度條 (Stepper) --- */
         .step-wrapper { 
             display: flex; 
             justify-content: center;
@@ -144,29 +141,34 @@ def load_css():
 
 def render_stepper(current_step):
     steps = ["喚名/口頭禪", "安慰", "鼓勵", "詼諧", "完成"]
+    
+    # 【關鍵修正】：移除所有縮排空格，防止 Markdown 誤判為程式碼區塊
     items_html = ""
     for i, name in enumerate(steps):
         is_active = "step-active" if i + 1 == current_step else ""
-        items_html += f"""
-        <div class="step-item {is_active}">
-            <div class="step-circle">{i+1}</div>
-            <div class="step-label">{name}</div>
-        </div>
-        """
-    st.markdown(f"""<div class="step-wrapper"><div class="step-line-bg"></div>{items_html}</div>""", unsafe_allow_html=True)
+        items_html += f"""<div class="step-item {is_active}"><div class="step-circle">{i+1}</div><div class="step-label">{name}</div></div>"""
+    
+    # 組合最終 HTML (單行模式)
+    final_html = f"""<div class="step-wrapper"><div class="step-line-bg"></div>{items_html}</div>"""
+    
+    st.markdown(final_html, unsafe_allow_html=True)
 
 def render_status_bar(tier, energy, xp, engine_type, is_guest=False):
     tier_map = {"basic": "初級練習生", "intermediate": "中級守護者", "advanced": "高級刻錄師", "eternal": "永恆上鏈"}
     tier_name = tier_map.get(tier, tier)
-    engine_name = "Gemini Pro" if engine_type == "elevenlabs" else "Gemini Flash"
     
-    # 移除小人圖示，只顯示徽章圖示 (如果在 tier_map 有定義) 或文字
+    # 【關鍵修正】：補上圖示
+    if engine_type == "elevenlabs":
+        engine_info = "🚀 Gemini Pro"
+    else:
+        engine_info = "⚡ Gemini Flash"
+    
+    # 移除小人圖示，只顯示徽章圖示
     if tier == "basic": icon = "🚀"
     elif tier == "intermediate": icon = "🛡️"
     elif tier == "advanced": icon = "🔥"
     else: icon = "♾️"
 
-    # user_label 修改：移除「👤」
     user_label = "👋 訪客" if is_guest else f"{icon} {tier_name}"
     xp_html = f'<span class="status-item">⭐ XP: <span class="status-value">{xp}</span></span>' if not is_guest else ''
     
@@ -176,7 +178,7 @@ def render_status_bar(tier, energy, xp, engine_type, is_guest=False):
         <div>
             <span class="status-item">❤️ 電量: <span class="status-value" style="color:#FF4081!important;">{energy}</span></span>
             {xp_html}
-            <span class="status-item">| {engine_name}</span>
+            <span class="status-item">| {engine_info}</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
