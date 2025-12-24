@@ -32,7 +32,7 @@ def load_css():
             font-size: 14px;
             color: #BBB !important;
             text-align: right;
-            padding-top: 8px; /* 微調垂直位置以對齊按鈕 */
+            padding-top: 28px; /* 微調垂直位置以對齊按鈕 */
             white-space: nowrap; /* 不換行 */
         }
 
