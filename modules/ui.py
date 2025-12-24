@@ -8,33 +8,86 @@ def load_css():
             color: #FAFAFA !important; 
         }
         
-        /* 調整主區塊寬度 (1000px) 與 頂部間距 */
+        /* [電腦版] 預設寬度 */
         .block-container {
             padding-top: 1rem !important;
             padding-bottom: 2rem !important;
             max-width: 1000px !important;
         }
+
+        /* --- 2. 手機版專用修正 (RWD) --- */
+        @media only screen and (max-width: 600px) {
+            /* 手機版：寬度佔滿，不要留白 */
+            .block-container {
+                max-width: 100% !important;
+                padding-left: 1rem !important;
+                padding-right: 1rem !important;
+            }
+            
+            /* 手機版：標題縮小 */
+            .header-title h1 {
+                font-size: 24px !important;
+            }
+            .header-subtitle {
+                font-size: 14px !important;
+            }
+            
+            /* 手機版：右上角資訊改為直式排列，或隱藏 Email */
+            .user-info-container {
+                flex-direction: column;
+                align-items: flex-end;
+                gap: 5px;
+                padding-top: 10px;
+            }
+            .user-email-text {
+                font-size: 10px; /* Email 縮小 */
+            }
+            
+            /* 手機版：狀態列改為垂直堆疊 */
+            .status-bar {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            /* 手機版：Stepper 圓圈縮小 */
+            .step-circle {
+                width: 20px; height: 20px; font-size: 10px;
+            }
+            .step-item {
+                padding: 0 5px; /* 縮小間距 */
+            }
+            /* 手機版：隱藏連接線 (避免太擁擠) */
+            .step-item::after {
+                display: none; 
+            }
+            .step-label {
+                font-size: 9px;
+            }
+        }
         
-        /* 移除所有預設分隔線 (hr) */
+        /* --- 以下為通用樣式 (維持不變) --- */
+        
+        /* 移除分隔線 */
         hr { display: none !important; }
         
-        /* --- 2. 頂部標題與用戶區 --- */
+        /* 標題樣式 */
         .header-title h1 {
-            font-size: 36px !important;
+            font-size: 32px;
             margin-bottom: 5px !important;
             padding: 0 !important;
             text-shadow: 0 0 15px rgba(124, 77, 255, 0.6);
             line-height: 1.2;
         }
         .header-subtitle {
-            font-size: 18px !important;
+            font-size: 18px;
             color: #CCC !important;
             margin-top: 0px !important;
             margin-bottom: 15px !important;
             font-weight: 400;
         }
         
-        /* 右上角用戶資訊區 */
+        /* 右上角用戶資訊 */
         .user-info-container {
             display: flex;
             flex-direction: row;
@@ -50,7 +103,7 @@ def load_css():
             white-space: nowrap;
         }
 
-        /* --- 3. Tab 分頁樣式 --- */
+        /* Tab 樣式 */
         button[data-baseweb="tab"] div {
             font-size: 18px !important;
             font-weight: 600 !important;
@@ -61,7 +114,7 @@ def load_css():
             border-bottom-color: #FF4B4B !important;
         }
 
-        /* --- 4. 狀態列 --- */
+        /* 狀態列 */
         .status-bar {
             background: linear-gradient(90deg, #1E1E1E 0%, #252525 100%);
             border: 1px solid #333;
@@ -74,7 +127,7 @@ def load_css():
         .status-item { margin-left: 15px; color: #BBB !important; }
         .status-value { color: #FFD700 !important; font-weight: bold; }
 
-        /* --- 5. 圓形進度條 (Stepper) --- */
+        /* Stepper */
         .step-wrapper { 
             display: flex; 
             justify-content: center;
@@ -104,13 +157,12 @@ def load_css():
         .step-active .step-label { color: #FF4B4B; font-weight: bold; }
         .step-label { font-size: 12px; color: #888; }
 
-        /* --- 其他元件 --- */
+        /* 卡片與氣泡 */
         .question-card-active {
             background-color: #1A1C24; padding: 20px; border-radius: 12px;
             border: 2px solid #2196F3; text-align: center; margin-bottom: 20px;
         }
         .q-text { font-size: 20px; color: #FFFFFF !important; font-weight: bold; margin: 10px 0; }
-        
         .history-card { 
             background-color: #262730; padding: 12px; border: 1px solid #444; 
             border-radius: 8px; margin-bottom: 8px; 
@@ -141,29 +193,20 @@ def load_css():
 
 def render_stepper(current_step):
     steps = ["喚名/口頭禪", "安慰", "鼓勵", "詼諧", "完成"]
-    
-    # 【關鍵修正】：移除所有縮排空格，防止 Markdown 誤判為程式碼區塊
     items_html = ""
     for i, name in enumerate(steps):
         is_active = "step-active" if i + 1 == current_step else ""
         items_html += f"""<div class="step-item {is_active}"><div class="step-circle">{i+1}</div><div class="step-label">{name}</div></div>"""
-    
-    # 組合最終 HTML (單行模式)
-    final_html = f"""<div class="step-wrapper"><div class="step-line-bg"></div>{items_html}</div>"""
-    
-    st.markdown(final_html, unsafe_allow_html=True)
+    # 注意：這裡保留 step-line-bg，但 CSS 裡針對手機版將其 display: none
+    st.markdown(f"""<div class="step-wrapper"><div class="step-line-bg"></div>{items_html}</div>""", unsafe_allow_html=True)
 
 def render_status_bar(tier, energy, xp, engine_type, is_guest=False):
     tier_map = {"basic": "初級練習生", "intermediate": "中級守護者", "advanced": "高級刻錄師", "eternal": "永恆上鏈"}
     tier_name = tier_map.get(tier, tier)
     
-    # 【關鍵修正】：補上圖示
-    if engine_type == "elevenlabs":
-        engine_info = "🚀 Gemini Pro"
-    else:
-        engine_info = "⚡ Gemini Flash"
+    if engine_type == "elevenlabs": engine_info = "🚀 Gemini Pro"
+    else: engine_info = "⚡ Gemini Flash"
     
-    # 移除小人圖示，只顯示徽章圖示
     if tier == "basic": icon = "🚀"
     elif tier == "intermediate": icon = "🛡️"
     elif tier == "advanced": icon = "🔥"
