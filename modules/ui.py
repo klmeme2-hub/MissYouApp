@@ -3,82 +3,184 @@ import streamlit as st
 def load_css():
     st.markdown("""
     <style>
-        /* 基礎配色：深色模式優化 */
-        .stApp {
-            background-color: #0E1117;
-            color: #FAFAFA;
+        /* --- 1. 全局設定 --- */
+        .stApp, p, h1, h2, h3, h4, h5, h6, label, span, div, li { 
+            color: #FAFAFA !important; 
         }
         
-        /* 全局文字顏色 */
-        .stApp, p, h1, h2, h3, h4, label, div, span, button { color: #FAFAFA !important; }
+        /* 調整主區塊寬度 (1000px) 與 頂部間距 (縮小) */
+        .block-container {
+            padding-top: 0.5rem !important; /* 極致縮小頂部 */
+            padding-bottom: 2rem !important;
+            max-width: 1000px !important;
+        }
         
-        /* 輸入框與選單背景 */
-        .stTextInput > div > div > input, .stSelectbox > div > div {
-            background-color: #262730 !important;
-            color: white !important;
-            border: 1px solid #444;
+        /* 縮小 Streamlit 預設的元件垂直間距 */
+        .stElementContainer {
+            margin-bottom: -5px !important; /* 讓元件靠得更近 */
+        }
+        
+        /* --- 2. 頂部標題與用戶區 --- */
+        .header-title h1 {
+            font-size: 32px !important;
+            margin-bottom: 0 !important;
+            padding: 0 !important;
+            text-shadow: 0 0 15px rgba(124, 77, 255, 0.6);
+            line-height: 1.2;
+        }
+        .header-subtitle {
+            font-size: 16px !important; /* 字體加大 */
+            color: #CCC !important;
+            margin-top: 2px !important; /* 縮小與標題距離 */
+            margin-bottom: 10px !important; /* 縮小與下方距離 */
+            font-weight: 400;
+        }
+        
+        /* 右上角用戶資訊區 */
+        .user-info-container {
+            display: flex;
+            flex-direction: row;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 15px; 
+            height: 100%;
+            padding-top: 15px; 
+        }
+        .user-email {
+            font-size: 13px;
+            color: #888 !important;
+            white-space: nowrap;
         }
 
-        /* 隱藏預設選單 */
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        
-        /* 讓按鈕好看一點點，但不要強制定位 */
-        div.stButton > button {
-            background-color: #FF4B4B;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-weight: bold;
-        }
-        
-        /* 卡片樣式 (僅保留背景色，移除複雜定位) */
-        .info-card {
-            background-color: #1A1C24;
-            padding: 15px;
-            border-radius: 10px;
+        /* --- 3. 狀態列 (縮小間距版) --- */
+        .status-bar {
+            background: linear-gradient(90deg, #1E1E1E 0%, #252525 100%);
             border: 1px solid #333;
-            margin-bottom: 10px;
+            padding: 8px 20px;
+            border-radius: 8px;
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 10px !important; /* 縮小與下方選單距離 */
+            font-size: 13px;
         }
+        .status-item { margin-left: 15px; color: #BBB !important; }
+        .status-value { color: #FFD700 !important; font-weight: bold; }
+
+        /* --- 4. 圓形進度條 (Stepper) --- */
+        .step-wrapper { 
+            display: flex; 
+            justify-content: center;
+            align-items: center;
+            gap: 0; 
+            margin: 5px 0 15px 0; /* 縮小上下邊距 */
+            position: relative;
+        }
+        .step-item { 
+            text-align: center; position: relative; z-index: 2; padding: 0 25px;
+        }
+        .step-circle {
+            width: 28px; height: 28px;
+            border-radius: 50%; background: #1E1E1E; margin: 0 auto 5px;
+            display: flex; align-items: center; justify-content: center; 
+            font-weight: bold; color: #666; font-size: 12px;
+            border: 2px solid #444; transition: all 0.3s;
+        }
+        .step-line-bg {
+            position: absolute; top: 14px; left: 50px; right: 50px; height: 2px;
+            background: #333; z-index: 1;
+        }
+        .step-active .step-circle {
+            background: #FF4B4B; color: white; border-color: #FF4B4B;
+            box-shadow: 0 0 10px rgba(255, 75, 75, 0.6);
+        }
+        .step-active .step-label { color: #FF4B4B; font-weight: bold; }
+        .step-label { font-size: 12px; color: #888; }
+
+        /* --- 其他元件 --- */
+        .question-card-active {
+            background-color: #1A1C24; padding: 20px; border-radius: 12px;
+            border: 2px solid #2196F3; text-align: center; margin-bottom: 20px;
+        }
+        .q-text { font-size: 20px; color: #FFFFFF !important; font-weight: bold; margin: 10px 0; }
+        
+        .history-card { 
+            background-color: #262730; padding: 12px; border: 1px solid #444; 
+            border-radius: 8px; margin-bottom: 8px; 
+        }
+        .script-box { 
+            background: #1E1E1E; padding: 15px; border-radius: 8px; margin: 10px 0; 
+            border-left: 4px solid #FFD700; color: #DDD !important;
+        }
+        .ai-bubble {
+            background-color: #262730; padding: 15px; border-radius: 10px;
+            border-left: 3px solid #FF4B4B; margin: 10px 0; color: #E0E0E0 !important;
+        }
+        .dashboard-card {
+            background-color: #1A1C24; padding: 15px; border-radius: 10px;
+            border: 1px solid #333; text-align: center; margin-bottom: 10px;
+        }
+
+        /* 自定義分隔線 (縮小間距用) */
+        .compact-divider {
+            height: 1px;
+            background-color: #333;
+            margin: 10px 0; /* 縮小上下間距 */
+        }
+
+        /* 輸入框與按鈕 */
+        input, textarea, .stSelectbox > div > div {
+            background-color: #1F2229 !important; color: #FAFAFA !important; border: 1px solid #444 !important;
+        }
+        div[data-baseweb="popover"] li:hover { background-color: #FF4B4B !important; }
+        button[kind="primary"] { background-color: #FF4B4B !important; color: white !important; border: none; }
+        
+        #MainMenu, footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-def render_status_bar(tier, energy, xp, engine_type, is_guest=False):
-    # 使用原生 Markdown 表格來排版，保證絕對對齊
-    tier_map = {"basic": "🚀 初級", "intermediate": "🛡️ 中級", "advanced": "🔥 高級", "eternal": "♾️ 永恆"}
-    tier_name = tier_map.get(tier, tier)
-    engine = "Gemini Pro" if engine_type == "elevenlabs" else "Flash"
-    
-    # 簡單的 HTML 排版
-    st.markdown(f"""
-    <div style="background:#262730; padding:10px 20px; border-radius:10px; border:1px solid #444; display:flex; justify-content:space-between; align-items:center;">
-        <span style="font-size:1.1em; font-weight:bold;">👤 {tier_name}</span>
-        <span>
-            <span style="color:#FF4081;">❤️ {energy}</span> &nbsp;|&nbsp; 
-            <span style="color:#FFD700;">⭐ {xp}</span> &nbsp;|&nbsp; 
-            <span style="color:#00E5FF;">⚡ {engine}</span>
-        </span>
-    </div>
-    <div style="margin-bottom: 20px;"></div>
-    """, unsafe_allow_html=True)
-
-# 移除複雜的 Stepper HTML，改用 Streamlit 原生 progress bar 或簡單文字
 def render_stepper(current_step):
-    steps = ["1.喚名", "2.安慰", "3.鼓勵", "4.詼諧", "5.完成"]
-    # 簡單的文字進度條
-    st.progress(current_step / 5)
-    st.caption(f"目前進度：{steps[current_step-1]} (Step {current_step}/5)")
+    steps = ["喚名/口頭禪", "安慰", "鼓勵", "詼諧", "完成"]
+    items_html = ""
+    for i, name in enumerate(steps):
+        is_active = "step-active" if i + 1 == current_step else ""
+        items_html += f"""
+        <div class="step-item {is_active}">
+            <div class="step-circle">{i+1}</div>
+            <div class="step-label">{name}</div>
+        </div>
+        """
+    st.markdown(f"""<div class="step-wrapper"><div class="step-line-bg"></div>{items_html}</div>""", unsafe_allow_html=True)
 
-def render_dashboard_card(title, content):
+def render_status_bar(tier, energy, xp, engine_type, is_guest=False):
+    tier_map = {"basic": "初級練習生", "intermediate": "中級守護者", "advanced": "高級刻錄師", "eternal": "永恆上鏈"}
+    tier_name = tier_map.get(tier, tier)
+    engine_name = "Gemini Pro" if engine_type == "elevenlabs" else "Gemini Flash"
+    
+    # 移除小人圖示，只顯示徽章圖示 (如果在 tier_map 有定義) 或文字
+    # 這裡依照指示，只顯示文字或自定義圖示
+    if tier == "basic": icon = "🚀"
+    elif tier == "intermediate": icon = "🛡️"
+    elif tier == "advanced": icon = "🔥"
+    else: icon = "♾️"
+
+    user_label = "👋 訪客" if is_guest else f"{icon} {tier_name}"
+    xp_html = f'<span class="status-item">⭐ XP: <span class="status-value">{xp}</span></span>' if not is_guest else ''
+    
     st.markdown(f"""
-    <div class="info-card" style="text-align:center;">
-        <div style="color:#888; font-size:12px;">{title}</div>
-        <div style="font-size:24px; font-weight:bold;">{content}</div>
+    <div class="status-bar">
+        <div style="font-weight:bold; color:#FFF;">{user_label}</div>
+        <div>
+            <span class="status-item">❤️ 電量: <span class="status-value" style="color:#FF4081!important;">{energy}</span></span>
+            {xp_html}
+            <span class="status-item">| {engine_name}</span>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
 def render_question_card(question, index, total):
-    st.info(f"📝 題目 ({index}/{total})：\n\n**{question}**")
+    st.markdown(f"""<div class="question-card-active"><div style="color:#888; font-size:12px; margin-bottom:5px;">PROGRESS {index}/{total}</div><div class="q-text">{question}</div><div style="font-size:13px; color:#AAA; margin-top:10px;">🎙️ 請按下錄音...</div></div>""", unsafe_allow_html=True)
 
 def render_history_card(q, a):
-    st.markdown(f"> **Q:** {q}\n\n{a[:30]}...")
+    st.markdown(f"""<div class="history-card"><b style="color:#FF4B4B;">Q: {q}</b><br><span style="color:#CCC; font-size:13px;">{a[:40]}...</span></div>""", unsafe_allow_html=True)
+
+def render_dashboard_card(title, content):
+    st.markdown(f"""<div class="dashboard-card"><div style="color:#888; font-size:13px; margin-bottom:5px;">{title}</div><div style="font-size:24px; font-weight:bold; color:#FAFAFA;">{content}</div></div>""", unsafe_allow_html=True)
