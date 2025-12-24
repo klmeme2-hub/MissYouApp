@@ -8,13 +8,14 @@ from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory, tab_conf
 import extra_streamlit_components as stx
 
 # ==========================================
-# 應用程式：MetaVoice (SaaS Beta 4.6 - UI 最終修復版)
+# 應用程式：MetaVoice (SaaS Beta 4.2 - 修復變數版)
 # ==========================================
 
 # 1. UI 設定
 st.set_page_config(page_title="MetaVoice", page_icon="🌌", layout="centered")
 ui.load_css()
 
+# 2. 初始化
 cookie_manager = stx.CookieManager()
 if "SUPABASE_URL" not in st.secrets: st.stop()
 supabase = database.init_supabase()
@@ -52,8 +53,6 @@ if "token" in st.query_params and not st.session_state.user and not st.session_s
 # 情境 A: 訪客模式
 # ------------------------------------------
 if st.session_state.guest_data:
-    # ... (訪客模式代碼維持不變) ...
-    # 為節省篇幅，請保留原有的訪客模式代碼
     owner_data = st.session_state.guest_data
     role_name = owner_data['role']
     owner_id = owner_data['owner_id']
@@ -150,7 +149,6 @@ if st.session_state.guest_data:
 # 情境 B: 未登入
 # ------------------------------------------
 elif not st.session_state.user:
-    # ... (登入區塊維持不變) ...
     cookies = cookie_manager.get_all()
     saved_email = cookies.get("member_email", "")
     saved_token = cookies.get("guest_token", "")
@@ -200,8 +198,7 @@ else:
     xp = profile.get('xp', 0)
     energy = profile.get('energy', 30)
     
-    # 1. 頂部 Header：改用標準 Columns 排版
-    # 左邊 (Title) : 中間 (空) : 右邊 (UserInfo)
+    # 1. 頂部 Header
     c1, c2 = st.columns([7, 3])
     
     with c1:
@@ -209,10 +206,8 @@ else:
         st.caption("元宇宙的第一張通行證：鎸刻你的數位聲紋")
         
     with c2:
-        # 右上角資訊區：使用 container 包裹
         with st.container():
             st.markdown(f"<div style='text-align:right; color:#888; margin-bottom:5px;'>{st.session_state.user.user.email}</div>", unsafe_allow_html=True)
-            # 按鈕強制填滿寬度，看起來比較整齊
             if st.button("登出", use_container_width=True):
                 supabase.auth.sign_out()
                 st.session_state.user = None
@@ -223,7 +218,7 @@ else:
     # 2. 狀態列
     ui.render_status_bar(tier, energy, xp, audio.get_tts_engine_type(profile))
     
-    # 3. 角色與邀請卡
+    # 3. 角色與邀請卡 (修正變數順序)
     allowed = ["朋友/死黨"]
     if tier != 'basic' or xp >= 20: allowed = list(config.ROLE_MAPPING.keys())
     
@@ -233,37 +228,45 @@ else:
         disp_role = st.selectbox("選擇對象", allowed)
         target_role = config.ROLE_MAPPING[disp_role]
         
+    # 【關鍵修正】在這裡先定義 has_op，再進入 col_btn
+    has_op = audio.get_audio_bytes(supabase, target_role, "opening")
+
     with col_btn:
-        # 為了讓按鈕跟選單對齊，加一點空白 spacer (這是 Streamlit 的小缺點)
         st.write("") 
         st.write("") 
         if st.button("🎁 生成邀請卡", type="primary", use_container_width=True):
             token = database.create_share_token(supabase, target_role)
             st.session_state.current_token = token
             st.session_state.show_invite = True
-    
-    if not has_op and target_role == "friend": st.caption("⚠️ 尚未錄製口頭禪，朋友將聽到 AI 語音")
-    if target_role == "friend" and len(allowed) == 1: st.info("🔒 累積 20 XP 或升級，即可解鎖「家人」角色。")
+
+    # 提示訊息
+    if not has_op and target_role == "friend":
+        st.caption(f"⚠️ 尚未錄製口頭禪，朋友將聽到 AI 語音 (請至「聲紋訓練」Step 1 錄製)")
 
     if st.session_state.show_invite:
         tk = st.session_state.get("current_token", "ERR")
         pd = database.load_persona(supabase, target_role)
         mn = pd.get('member_nickname', '我') if pd else '我'
         url = f"https://missyou.streamlit.app/?token={tk}_{mn}"
+        
         st.markdown("---")
         st.success(f"💌 邀請連結 ({disp_role})")
+        
+        copy_text = f"欸！我做了一個AI分身超像的，點這個連結打電話給我：\n{url}"
+        if target_role == "partner": copy_text = f"親愛的，這是我留給你的聲音：\n{url}"
+        elif target_role == "junior": copy_text = f"孩子，這是爸媽的時光膠囊：\n{url}"
+        elif target_role == "elder": copy_text = f"爸/媽，您可以點開來跟我講講話：\n{url}"
+
         st.code(url)
-        st.text_area("建議文案", value=f"欸！點這個連結打電話給我：\n{url}")
+        st.text_area("建議文案", value=copy_text)
         if st.button("❌ 關閉"): st.session_state.show_invite = False
         st.markdown("---")
 
     st.divider()
 
-    # 4. Tab 分頁
-    t1, t2, t3, t4 = st.tabs(["🧬 聲紋訓練", "📝 人設補完", "🧠 回憶補完", "💎 等級說明"])
+    t1, t2, t3, t4 = st.tabs(["🧬 聲紋訓練", "💎 等級說明", "📝 人設補完", "🧠 回憶補完"])
 
     with t1: tab_voice.render(supabase, client, st.session_state.user.user.id, target_role, tier)
-    with t2: tab_persona.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp)
-    with t3: tab_memory.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp, question_db)
-    with t4: tab_store.render(supabase, st.session_state.user.user.id, xp)
-
+    with t2: tab_store.render(supabase, st.session_state.user.user.id, xp)
+    with t3: tab_persona.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp)
+    with t4: tab_memory.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp, question_db)
