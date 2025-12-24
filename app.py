@@ -8,14 +8,13 @@ from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory, tab_conf
 import extra_streamlit_components as stx
 
 # ==========================================
-# 應用程式：MetaVoice (SaaS Beta 4.4 - UI 最終調整版)
+# 應用程式：MetaVoice (SaaS Beta 4.5 - 版面優化版)
 # ==========================================
 
-# 1. UI 設定 (置中 -> 寬度由 CSS 控制在 1200px)
-st.set_page_config(page_title="MetaVoice - 元宇宙聲紋站", page_icon="🌌", layout="centered")
+# 1. UI 設定 (置中, 寬度由 CSS 控)
+st.set_page_config(page_title="MetaVoice", page_icon="🌌", layout="centered")
 ui.load_css()
 
-# 2. 初始化
 cookie_manager = stx.CookieManager()
 if "SUPABASE_URL" not in st.secrets: st.stop()
 supabase = database.init_supabase()
@@ -28,7 +27,6 @@ def load_questions():
     except: return {}
 question_db = load_questions()
 
-# 3. 狀態管理
 if "user" not in st.session_state: st.session_state.user = None
 if "guest_data" not in st.session_state: st.session_state.guest_data = None
 if "step" not in st.session_state: st.session_state.step = 1
@@ -36,10 +34,6 @@ if "show_invite" not in st.session_state: st.session_state.show_invite = False
 if "current_token" not in st.session_state: st.session_state.current_token = None
 if "call_status" not in st.session_state: st.session_state.call_status = "ringing"
 if "friend_stage" not in st.session_state: st.session_state.friend_stage = "listen"
-
-# ==========================================
-# 邏輯路由
-# ==========================================
 
 # 1. 網址參數攔截
 if "token" in st.query_params and not st.session_state.user and not st.session_state.guest_data:
@@ -54,11 +48,11 @@ if "token" in st.query_params and not st.session_state.user and not st.session_s
     except: pass
 
 # ------------------------------------------
-# 情境 A: 訪客模式 (不變)
+# 情境 A: 訪客模式
 # ------------------------------------------
 if st.session_state.guest_data:
-    # ... (請保留訪客模式代碼，為節省篇幅此處省略，請直接複製上一版的情境 A 代碼) ...
-    # 這裡直接引用上一版的訪客代碼
+    # ... (訪客模式代碼維持不變，請複製上一版) ...
+    # 為節省篇幅，此處省略，請務必補上
     owner_data = st.session_state.guest_data
     role_name = owner_data['role']
     owner_id = owner_data['owner_id']
@@ -67,11 +61,8 @@ if st.session_state.guest_data:
     profile = database.get_user_profile(supabase, user_id=owner_id)
     tier = profile.get('tier', 'basic')
     energy = profile.get('energy', 0)
-    
     persona_data = database.load_persona(supabase, role_name)
-    display_name = url_name
-    if persona_data and persona_data.get('member_nickname'):
-        display_name = persona_data['member_nickname']
+    display_name = persona_data.get('member_nickname', url_name) if persona_data else url_name
 
     if st.session_state.call_status == "ringing":
         c1, c2, c3 = st.columns([1, 2, 1])
@@ -85,8 +76,7 @@ if st.session_state.guest_data:
     elif st.session_state.call_status == "connected":
         if "opening_played" not in st.session_state:
             op_bytes = audio.get_audio_bytes(supabase, role_name, "opening")
-            if not op_bytes and role_name != "friend":
-                op_bytes = audio.get_audio_bytes(supabase, role_name, "nickname")
+            if not op_bytes and role_name != "friend": op_bytes = audio.get_audio_bytes(supabase, role_name, "nickname")
             
             if role_name == "friend":
                 ai_ask = "你覺得這個AI分身，跟我本尊有幾分像呢？幫我打個分數，拜託了。"
@@ -123,8 +113,7 @@ if st.session_state.guest_data:
                     user_text = brain.transcribe_audio(audio_val)
                     if len(user_text.strip()) > 0:
                         with st.spinner("..."):
-                            if parrot_mode:
-                                ai_text = user_text
+                            if parrot_mode: ai_text = user_text
                             else:
                                 mems = database.get_all_memories_text(supabase, role_name)
                                 has_nick = audio.get_audio_bytes(supabase, role_name, "nickname") is not None
@@ -132,7 +121,6 @@ if st.session_state.guest_data:
                             
                             forced_tier = 'advanced' if (role_name!="friend" and use_high) else 'basic'
                             wav = audio.generate_speech(ai_text, forced_tier)
-                            
                             final = wav
                             if not parrot_mode and has_nick and wav:
                                 nb = audio.get_audio_bytes(supabase, role_name, "nickname")
@@ -158,14 +146,13 @@ if st.session_state.guest_data:
             st.rerun()
 
 # ------------------------------------------
-# 情境 B: 未登入 (首頁)
+# 情境 B: 未登入
 # ------------------------------------------
 elif not st.session_state.user:
-    # ... (請複製上一版 情境 B 代碼，無變動) ...
+    # ... (請複製上一版登入代碼) ...
     cookies = cookie_manager.get_all()
     saved_email = cookies.get("member_email", "")
     saved_token = cookies.get("guest_token", "")
-    
     col1, col2 = st.columns([1, 1], gap="large")
     with col1:
         st.markdown("## 👋 我是親友")
@@ -177,7 +164,6 @@ elif not st.session_state.user:
                 st.session_state.guest_data = {'owner_id': d['user_id'], 'role': d['role']}
                 st.rerun()
             else: st.error("無效")
-
     with col2:
         st.markdown("## 👤 我是會員")
         tab_l, tab_s = st.tabs(["登入", "註冊"])
@@ -205,7 +191,7 @@ elif not st.session_state.user:
                 else: st.error("失敗")
 
 # ------------------------------------------
-# 情境 C: 會員後台 (UI 改版重點)
+# 情境 C: 會員後台 (新版佈局)
 # ------------------------------------------
 else:
     profile = database.get_user_profile(supabase)
@@ -213,8 +199,8 @@ else:
     xp = profile.get('xp', 0)
     energy = profile.get('energy', 30)
     
-    # 1. 頂部 Header 改版 (7:3 佈局)
-    col_head_main, col_head_info = st.columns([7, 3])
+    # 1. 頂部 Header 改版 (使用 user-info-box class 進行 CSS 對齊)
+    col_head_main, col_head_info = st.columns([6, 4])
     
     with col_head_main:
         st.markdown("""
@@ -225,12 +211,15 @@ else:
         """, unsafe_allow_html=True)
         
     with col_head_info:
-        # 右上角：Email + 登出 (並排)
-        # 使用 sub-columns 來達成一行顯示
-        c_email, c_out = st.columns([3, 1])
+        # 將 Email 和 登出按鈕包在同一個 HTML 結構中，利用 CSS flex 對齊
+        # 注意：這裡使用 Streamlit 兩個元件較難完全水平對齊，
+        # 這裡我們用 CSS 技巧：顯示 email 文字，按鈕在旁邊
+        
+        # 方案：直接用 Columns 模擬單行
+        c_email, c_btn = st.columns([2, 1])
         with c_email:
             st.markdown(f"<div class='user-email-text'>{st.session_state.user.user.email}</div>", unsafe_allow_html=True)
-        with c_out:
+        with c_btn:
             if st.button("登出", key="logout_btn", use_container_width=True):
                 supabase.auth.sign_out()
                 st.session_state.user = None
@@ -239,49 +228,44 @@ else:
     # 2. 狀態列
     ui.render_status_bar(tier, energy, xp, audio.get_tts_engine_type(profile))
     
-    # 3. 角色選擇區
+    # 3. 角色選擇 (移除標籤文字 "選擇對象")
     allowed = ["朋友/死黨"]
     if tier != 'basic' or xp >= 20: allowed = list(config.ROLE_MAPPING.keys())
     
     c_role, c_btn = st.columns([7, 3])
     with c_role:
-        disp_role = st.selectbox("選擇對象", allowed, label_visibility="collapsed")
+        # label_visibility="collapsed" 已隱藏標籤
+        disp_role = st.selectbox("Role", allowed, label_visibility="collapsed")
         target_role = config.ROLE_MAPPING[disp_role]
     with c_btn:
-        # 生成邀請卡按鈕
         has_op = audio.get_audio_bytes(supabase, target_role, "opening")
         if st.button("🎁 生成邀請卡", type="primary", use_container_width=True):
             token = database.create_share_token(supabase, target_role)
             st.session_state.current_token = token
             st.session_state.show_invite = True
     
-    if not has_op and target_role == "friend": st.caption("⚠️ 尚未錄製口頭禪，朋友將聽到 AI 語音")
-    if target_role == "friend" and len(allowed) == 1: st.info("🔒 累積 20 XP 或升級，即可解鎖「家人」角色。")
+    if not has_op and target_role == "friend": st.caption("⚠️ 尚未錄製口頭禪")
+    if target_role == "friend" and len(allowed) == 1: st.info("🔒 累積 20 XP 解鎖家人角色")
 
-    # 4. 邀請卡顯示區
+    # 邀請卡彈窗 (略，請複製)
     if st.session_state.show_invite:
         tk = st.session_state.get("current_token", "ERR")
         pd = database.load_persona(supabase, target_role)
         mn = pd.get('member_nickname', '我') if pd else '我'
         url = f"https://missyou.streamlit.app/?token={tk}_{mn}"
-        
         st.markdown("---")
         st.success(f"💌 邀請連結 ({disp_role})")
-        
-        copy_text = f"欸！我做了一個AI分身超像的，點這個連結打電話給我：\n{url}"
-        if target_role != "friend": copy_text = f"這是留給你的聲音：\n{url}"
-
         st.code(url)
-        st.text_area("建議文案", value=copy_text)
+        st.text_area("文案", value=f"欸！點這個連結打電話給我：\n{url}")
         if st.button("❌ 關閉"): st.session_state.show_invite = False
         st.markdown("---")
 
     st.divider()
 
-    # 5. TAB 分頁 (調整順序：等級說明移到最後)
+    # 4. TAB 分頁 (隱藏完美暱稱，等級說明移至最後)
     t1, t2, t3, t4 = st.tabs(["🧬 聲紋訓練", "📝 人設補完", "🧠 回憶補完", "💎 等級說明"])
 
     with t1: tab_voice.render(supabase, client, st.session_state.user.user.id, target_role, tier)
     with t2: tab_persona.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp)
     with t3: tab_memory.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp, question_db)
-    with t4: tab_store.render(supabase, st.session_state.user.user.id, xp) # 等級說明放最後
+    with t4: tab_store.render(supabase, st.session_state.user.user.id, xp)
