@@ -12,7 +12,7 @@ def load_css():
         .block-container {
             padding-top: 1.5rem !important;
             padding-bottom: 2rem !important;
-            max-width: 1200px !important; /* 加寬到 1200px */
+            max-width: 1000px !important; /* 加寬到 1000px */
         }
 
         /* --- 2. 頂部標題與用戶區 --- */
