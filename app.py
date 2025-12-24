@@ -8,7 +8,7 @@ from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory, tab_conf
 import extra_streamlit_components as stx
 
 # ==========================================
-# 應用程式：MetaVoice (SaaS Stable - 穩定版)
+# 應用程式：MetaVoice (SaaS Beta 4.8 - 緊湊對齊版)
 # ==========================================
 
 # 1. UI 設定
@@ -27,7 +27,6 @@ def load_questions():
     except: return {}
 question_db = load_questions()
 
-# 3. 狀態管理
 if "user" not in st.session_state: st.session_state.user = None
 if "guest_data" not in st.session_state: st.session_state.guest_data = None
 if "step" not in st.session_state: st.session_state.step = 1
@@ -52,6 +51,7 @@ if "token" in st.query_params and not st.session_state.user and not st.session_s
 # 情境 A: 訪客模式
 # ------------------------------------------
 if st.session_state.guest_data:
+    # (訪客模式代碼維持不變，請保留原邏輯)
     owner_data = st.session_state.guest_data
     role_name = owner_data['role']
     owner_id = owner_data['owner_id']
@@ -66,7 +66,7 @@ if st.session_state.guest_data:
     if st.session_state.call_status == "ringing":
         c1, c2, c3 = st.columns([1, 2, 1])
         with c2:
-            st.markdown(f"<div style='text-align:center; padding-top:50px;'><div style='font-size:80px;'>👤</div><h1>{display_name}</h1><p style='color:#CCC;'>📞 來電中...</p></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='text-align:center; padding-top:50px;'><div style='font-size:80px;'>👤</div><h1>{display_name}</h1><p style='color:#CCC; animation:blink 1.5s infinite;'>📞 來電中...</p></div><style>@keyframes blink {{0%{{opacity:1}} 50%{{opacity:0.5}} 100%{{opacity:1}}}}</style>", unsafe_allow_html=True)
             if st.button("🟢 接聽", use_container_width=True, type="primary"):
                 st.session_state.call_status = "connected"
                 database.check_daily_interaction(supabase, owner_id)
@@ -126,21 +126,29 @@ if st.session_state.guest_data:
                                 if nb: final = audio.merge_audio_clips(nb, wav)
                             
                             st.audio(final, format="audio/mp3", autoplay=True)
-                            st.info(ai_text)
+                            st.markdown(f'<div class="ai-bubble">{ai_text}</div>', unsafe_allow_html=True)
                 except: st.error("連線不穩")
 
-    st.divider()
+    # 隱藏分隔線
     if st.button("🔴 掛斷"):
         st.session_state.guest_data = None
         st.session_state.call_status = "ringing"
         if "opening_played" in st.session_state: del st.session_state["opening_played"]
         st.query_params.clear()
         st.rerun()
+    
+    if role_name == "friend":
+        st.info("😲 覺得像嗎？註冊免費獲得您的 AI 分身 👇")
+        if st.button("👉 點此註冊"):
+            st.session_state.guest_data = None
+            st.query_params.clear()
+            st.rerun()
 
 # ------------------------------------------
 # 情境 B: 未登入
 # ------------------------------------------
 elif not st.session_state.user:
+    # (登入頁面維持不變，請複製前版)
     cookies = cookie_manager.get_all()
     saved_email = cookies.get("member_email", "")
     saved_token = cookies.get("guest_token", "")
@@ -182,7 +190,7 @@ elif not st.session_state.user:
                 else: st.error("失敗")
 
 # ------------------------------------------
-# 情境 C: 會員後台
+# 情境 C: 會員後台 (UI 改版核心)
 # ------------------------------------------
 else:
     profile = database.get_user_profile(supabase)
@@ -190,62 +198,68 @@ else:
     xp = profile.get('xp', 0)
     energy = profile.get('energy', 30)
     
-    # 1. 頂部 Header (原生 Columns 排版，最穩)
-    c1, c2 = st.columns([7, 3])
+    # 1. 頂部 Header 新佈局 (7:3)
+    col_head_main, col_head_info = st.columns([7, 3], vertical_alignment="bottom")
     
-    with c1:
-        st.title("🌌 元宇宙聲紋站")
-        st.caption("元宇宙的第一張通行證：鎸刻你的數位聲紋")
+    with col_head_main:
+        st.markdown("""
+        <div class="header-title">
+            <h1>🌌 元宇宙聲紋站</h1>
+            <p class="header-subtitle">元宇宙的第一張通行證：鎸刻你的數位聲紋</p>
+        </div>
+        """, unsafe_allow_html=True)
         
-    with c2:
-        with st.container():
-            st.markdown(f"<div style='text-align:right; color:#AAA; margin-bottom:5px;'>{st.session_state.user.user.email}</div>", unsafe_allow_html=True)
-            if st.button("登出", use_container_width=True):
+    with col_head_info:
+        # 單行排列 Email 與 登出按鈕
+        c_email, c_btn = st.columns([2, 1], vertical_alignment="center")
+        with c_email:
+            st.markdown(f"<div class='user-email-text'>{st.session_state.user.user.email}</div>", unsafe_allow_html=True)
+        with c_btn:
+            if st.button("登出", key="logout_btn", use_container_width=True):
                 supabase.auth.sign_out()
                 st.session_state.user = None
                 st.rerun()
 
-    st.divider()
-
     # 2. 狀態列
     ui.render_status_bar(tier, energy, xp, audio.get_tts_engine_type(profile))
     
-    # 3. 角色與分享
+    # 3. 角色與分享 (底部對齊)
     allowed = ["朋友/死黨"]
     if tier != 'basic' or xp >= 20: allowed = list(config.ROLE_MAPPING.keys())
     
-    c_role, c_btn = st.columns([7, 3])
+    c_role, c_btn = st.columns([7, 3], vertical_alignment="bottom")
     with c_role:
         disp_role = st.selectbox("選擇對象", allowed, label_visibility="collapsed")
         target_role = config.ROLE_MAPPING[disp_role]
-    
-    # 【關鍵修正】先定義 has_op 再使用
-    has_op = audio.get_audio_bytes(supabase, target_role, "opening")
-    
     with c_btn:
-        st.write("") # Spacer
+        has_op = audio.get_audio_bytes(supabase, target_role, "opening")
         if st.button("🎁 生成邀請卡", type="primary", use_container_width=True):
             token = database.create_share_token(supabase, target_role)
             st.session_state.current_token = token
             st.session_state.show_invite = True
-
-    if not has_op and target_role == "friend": st.caption("⚠️ 尚未錄製口頭禪")
+    
+    if not has_op and target_role == "friend": st.caption("⚠️ 尚未錄製口頭禪，朋友將聽到 AI 語音")
+    if target_role == "friend" and len(allowed) == 1: st.info("🔒 累積 20 XP 或升級，即可解鎖「家人」角色。")
 
     if st.session_state.show_invite:
         tk = st.session_state.get("current_token", "ERR")
         pd = database.load_persona(supabase, target_role)
         mn = pd.get('member_nickname', '我') if pd else '我'
         url = f"https://missyou.streamlit.app/?token={tk}_{mn}"
-        
         st.success(f"💌 邀請連結 ({disp_role})")
-        st.code(url)
-        if st.button("❌ 關閉"): st.session_state.show_invite = False
-        st.divider()
+        
+        copy_text = f"欸！我做了一個AI分身超像的，點這個連結打電話給我：\n{url}"
+        if target_role != "friend": copy_text = f"這是留給你的聲音：\n{url}"
 
-    # 4. Tab 分頁
-    t1, t2, t3, t4 = st.tabs(["🧬 聲紋訓練", "💎 等級說明", "📝 人設補完", "🧠 回憶補完"])
+        st.code(url)
+        st.text_area("建議文案", value=copy_text)
+        if st.button("❌ 關閉"): st.session_state.show_invite = False
+
+    # 4. Tab 分頁 (調整順序與命名)
+    # 移除完美暱稱 Tab，等級說明移至最後
+    t1, t2, t3, t4 = st.tabs(["🧬 聲紋訓練", "📝 人設補完", "🧠 回憶補完", "💎 等級說明"])
 
     with t1: tab_voice.render(supabase, client, st.session_state.user.user.id, target_role, tier)
-    with t2: tab_store.render(supabase, st.session_state.user.user.id, xp)
-    with t3: tab_persona.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp)
-    with t4: tab_memory.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp, question_db)
+    with t2: tab_persona.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp)
+    with t3: tab_memory.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp, question_db)
+    with t4: tab_store.render(supabase, st.session_state.user.user.id, xp)
