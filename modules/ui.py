@@ -4,7 +4,21 @@ def load_css():
     st.markdown("""
     <style>
         /* =============================================
-           1. 基底設定 (不使用暴力 * 選擇器，改用精準打擊)
+           1. 版面結構調整 (空間壓縮核心)
+           ============================================= */
+        /* 縮減頂部留白，並將寬度設定為 1000px (比預設寬，比全螢幕窄) */
+        .block-container {
+            padding-top: 1rem !important;
+            padding-bottom: 2rem !important;
+            max-width: 1000px !important;
+        }
+        
+        /* 標題區域緊湊化 */
+        h1 { margin-bottom: 0px !important; padding-bottom: 0px !important; font-size: 2.5rem !important; }
+        p { margin-bottom: 10px !important; }
+        
+        /* =============================================
+           2. 基底配色 (深空黑 + 霓虹)
            ============================================= */
         .stApp {
             background-color: #0E1117;
@@ -12,53 +26,16 @@ def load_css():
             background-attachment: fixed;
             color: #FAFAFA;
         }
-        
-        /* 主要文字顏色 */
-        h1, h2, h3, h4, h5, h6, p, label, span, div {
-            color: #FAFAFA;
-        }
+        h1, h2, h3, h4, h5, h6, p, label, span, div { color: #FAFAFA; }
 
         /* =============================================
-           2. 修復 Expander (折疊區塊/下拉說明) - 這是您報錯的地方
+           3. 元件樣式
            ============================================= */
-        
-        /* 折疊區塊的頭部 (Header) */
-        div[data-testid="stExpander"] details summary {
-            background-color: #1F2229 !important; /* 深灰底 */
-            border: 1px solid #444 !important;
-            border-radius: 10px !important;
-            padding: 15px !important;
-            color: #FAFAFA !important;
-            transition: all 0.3s;
-        }
-
-        /* 滑鼠移過去變亮 */
-        div[data-testid="stExpander"] details summary:hover {
-            border-color: #FF4B4B !important;
-            color: #FFF !important;
-        }
-
-        /* 修正箭頭圖示 (SVG) */
-        div[data-testid="stExpander"] details summary svg {
-            fill: #FF4B4B !important; /* 箭頭改為紅色 */
-            margin-right: 10px; /* 增加間距，避免重疊 */
-        }
-        
-        /* 折疊區塊展開後的內容 */
-        div[data-testid="stExpander"] details div[data-testid="stVerticalBlock"] {
-            background-color: rgba(255,255,255,0.02);
-            border-left: 2px solid #444;
-            padding-left: 20px;
-            margin-top: 10px;
-        }
-
-        /* =============================================
-           3. 輸入框與選單優化
-           ============================================= */
+        /* 輸入框 */
         input[type="text"], input[type="password"], textarea {
             background-color: #1F2229 !important;
-            color: #FFFFFF !important;
             border: 1px solid #444 !important;
+            color: #FFFFFF !important;
             border-radius: 8px !important;
         }
         
@@ -68,73 +45,79 @@ def load_css():
             border-color: #444 !important;
             color: #FFFFFF !important;
         }
-        
-        /* 下拉選單的選項 */
         div[data-baseweb="popover"], div[data-baseweb="menu"] {
             background-color: #1F2229 !important;
             border: 1px solid #555 !important;
         }
-        div[data-baseweb="option"] {
-            color: white !important;
-        }
+        div[data-baseweb="option"] { color: white !important; }
 
-        /* =============================================
-           4. 狀態列與卡片 (維持之前的設計)
-           ============================================= */
-        
-        .status-bar {
-            background: linear-gradient(90deg, #1E1E1E 0%, #2D2D2D 100%);
-            border: 1px solid #444;
-            color: white !important;
-            padding: 15px 25px; 
-            border-radius: 12px;
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 30px; 
-            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-            border-left: 4px solid #00E5FF;
-        }
-        .status-item { margin-left: 15px; font-size: 14px; color: #DDD !important; }
-        
-        /* 玻璃卡片 */
-        .glass-card, .dashboard-card {
-            background-color: #1A1C24;
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid #444;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        
-        /* 題目卡片 */
-        .question-card-active {
-            background: linear-gradient(135deg, rgba(33, 150, 243, 0.1) 0%, rgba(33, 150, 243, 0.02) 100%);
-            border: 1px solid #2196F3;
-            box-shadow: 0 0 15px rgba(33, 150, 243, 0.2);
-            padding: 25px; border-radius: 16px; text-align: center; margin-bottom: 20px;
-        }
-        .q-text { font-size: 22px; color: #FFF !important; font-weight: 600; margin: 15px 0; }
-        
-        /* 圓形進度條 */
-        .step-wrapper { display: flex; justify-content: space-between; margin: 30px 0; }
-        .step-item { text-align: center; width: 100%; position: relative; }
-        .step-circle {
-            width: 35px; height: 35px; border-radius: 50%; background: #444; margin: 0 auto 8px;
-            display: flex; align-items: center; justify-content: center; font-weight: bold; color: #BBB;
-            border: 2px solid #666; transition: all 0.3s;
-        }
-        .step-active .step-circle { background: #FF4B4B; color: white; border-color: #FF4B4B; box-shadow: 0 0 10px rgba(255, 75, 75, 0.5); }
-        .step-label { font-size: 13px; color: #888; }
-        .step-active .step-label { color: #FF4B4B; font-weight: bold; }
-
-        /* 按鈕美化 */
+        /* 按鈕 */
         button[kind="primary"] {
             background: linear-gradient(45deg, #FF4B4B, #FF9100) !important;
             border: none !important;
             color: white !important;
             font-weight: bold !important;
-            box-shadow: 0 4px 15px rgba(255, 75, 75, 0.4);
+            box-shadow: 0 4px 10px rgba(255, 75, 75, 0.3);
         }
+
+        /* =============================================
+           4. 狀態列與卡片 (緊湊化)
+           ============================================= */
+        .status-bar {
+            background: linear-gradient(90deg, #1E1E1E 0%, #2D2D2D 100%);
+            border: 1px solid #444;
+            padding: 8px 20px; /* 縮減高度 */
+            border-radius: 8px;
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 15px; /* 縮減下邊距 */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            border-left: 4px solid #00E5FF;
+        }
+        .status-item { margin-left: 15px; font-size: 14px; color: #DDD !important; }
         
+        /* 圓形進度條 (縮減高度) */
+        .step-wrapper { 
+            display: flex; justify-content: space-between; 
+            margin: 10px 0; /* 大幅縮減上下邊距 */
+            padding: 0 20px;
+        }
+        .step-item { text-align: center; width: 100%; position: relative; }
+        .step-circle {
+            width: 30px; height: 30px; /* 稍微縮小 */
+            border-radius: 50%; background: #444; margin: 0 auto 4px;
+            display: flex; align-items: center; justify-content: center; font-weight: bold; color: #BBB;
+            border: 2px solid #666; transition: all 0.3s;
+            font-size: 14px;
+        }
+        .step-active .step-circle { background: #FF4B4B; color: white; border-color: #FF4B4B; box-shadow: 0 0 8px rgba(255, 75, 75, 0.5); }
+        .step-label { font-size: 11px; color: #888; }
+        .step-active .step-label { color: #FF4B4B; font-weight: bold; }
+
+        /* 題目卡片 */
+        .question-card-active {
+            background: linear-gradient(135deg, rgba(33, 150, 243, 0.1) 0%, rgba(33, 150, 243, 0.02) 100%);
+            border: 1px solid #2196F3;
+            box-shadow: 0 0 10px rgba(33, 150, 243, 0.2);
+            padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 15px;
+        }
+        .q-text { font-size: 20px; color: #FFF !important; font-weight: 600; margin: 10px 0; }
+        
+        /* 儀表板卡片 */
+        .dashboard-card {
+            background-color: #1A1C24;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #444;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        /* 歷史卡片 */
+        .history-card {
+            background-color: #262730; padding: 10px; border: 1px solid #444; 
+            border-radius: 6px; margin-bottom: 8px;
+        }
+
         /* 隱藏選單 */
         #MainMenu, footer {visibility: hidden;}
     </style>
@@ -166,7 +149,7 @@ def render_status_bar(tier, energy, xp, engine_type, is_guest=False):
     
     st.markdown(f"""
     <div class="status-bar">
-        <div style="font-size:18px; font-weight:bold; color:#FFF;">{user_label}</div>
+        <div style="font-size:16px; font-weight:bold; color:#FFF;">{user_label}</div>
         <div style="text-align:right;">
             <span class="status-item">❤️ 電量: <span style="color:#FF4081; font-weight:bold;">{energy}</span></span>
             {xp_html}
@@ -178,15 +161,15 @@ def render_status_bar(tier, energy, xp, engine_type, is_guest=False):
 def render_question_card(question, index, total):
     st.markdown(f"""
     <div class="question-card-active">
-        <div style="color:#00E5FF; font-size:12px; margin-bottom:10px; letter-spacing:2px; text-transform:uppercase;">Processing {index}/{total}</div>
+        <div style="color:#00E5FF; font-size:12px; margin-bottom:5px; letter-spacing:2px; text-transform:uppercase;">Processing {index}/{total}</div>
         <div class="q-text">{question}</div>
-        <div style="font-size:13px; color:#AAA; margin-top:15px;">🎙️ 點擊下方按鈕錄音...</div>
+        <div style="font-size:13px; color:#AAA; margin-top:10px;">🎙️ 點擊下方按鈕錄音...</div>
     </div>
     """, unsafe_allow_html=True)
 
 def render_history_card(q, a):
     st.markdown(f"""
-    <div style="background-color:#262730; padding:15px; border-radius:8px; margin-bottom:10px; border:1px solid #444;">
+    <div class="history-card">
         <b style="color:#FF4B4B;">Q: {q}</b><br>
         <span style="color:#CCC; font-size:13px;">{a[:40]}...</span>
     </div>
