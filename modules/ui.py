@@ -1,262 +1,211 @@
 import streamlit as st
-import json
-import time
-import datetime
-from openai import OpenAI
-from modules import ui, auth, database, audio, brain, config
-from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory, tab_config
-import extra_streamlit_components as stx
 
-# ==========================================
-# 應用程式：MetaVoice (SaaS Beta 4.9 - 手機版優化與穩定版)
-# ==========================================
-
-# 1. UI 設定
-st.set_page_config(page_title="MetaVoice", page_icon="🌌", layout="centered")
-ui.load_css()
-
-cookie_manager = stx.CookieManager()
-if "SUPABASE_URL" not in st.secrets: st.stop()
-supabase = database.init_supabase()
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
-@st.cache_data
-def load_questions():
-    try:
-        with open('questions.json', 'r', encoding='utf-8') as f: return json.load(f)
-    except: return {}
-question_db = load_questions()
-
-# 3. 狀態管理
-if "user" not in st.session_state: st.session_state.user = None
-if "guest_data" not in st.session_state: st.session_state.guest_data = None
-if "step" not in st.session_state: st.session_state.step = 1
-if "show_invite" not in st.session_state: st.session_state.show_invite = False
-if "current_token" not in st.session_state: st.session_state.current_token = None
-if "call_status" not in st.session_state: st.session_state.call_status = "ringing"
-if "friend_stage" not in st.session_state: st.session_state.friend_stage = "listen"
-
-# 1. 網址參數攔截
-if "token" in st.query_params and not st.session_state.user and not st.session_state.guest_data:
-    try:
-        raw = st.query_params["token"]
-        real_tk = raw.split("_")[0] if "_" in raw else raw
-        d_name = raw.split("_")[1] if "_" in raw else "朋友"
-        data = database.validate_token(supabase, real_tk)
-        if data:
-            st.session_state.guest_data = {'owner_id': data['user_id'], 'role': data['role'], 'display_name': d_name}
-            st.rerun()
-    except: pass
-
-# ------------------------------------------
-# 情境 A: 訪客模式
-# ------------------------------------------
-if st.session_state.guest_data:
-    owner_data = st.session_state.guest_data
-    role_name = owner_data['role']
-    owner_id = owner_data['owner_id']
-    url_name = owner_data.get('display_name', '朋友')
-    
-    profile = database.get_user_profile(supabase, user_id=owner_id)
-    tier = profile.get('tier', 'basic')
-    energy = profile.get('energy', 0)
-    persona_data = database.load_persona(supabase, role_name)
-    display_name = persona_data.get('member_nickname', url_name) if persona_data else url_name
-
-    if st.session_state.call_status == "ringing":
-        c1, c2, c3 = st.columns([1, 2, 1])
-        with c2:
-            st.markdown(f"<div style='text-align:center; padding-top:50px;'><div style='font-size:80px;'>👤</div><h1>{display_name}</h1><p style='color:#CCC; animation:blink 1.5s infinite;'>📞 來電中...</p></div><style>@keyframes blink {{0%{{opacity:1}} 50%{{opacity:0.5}} 100%{{opacity:1}}}}</style>", unsafe_allow_html=True)
-            if st.button("🟢 接聽", use_container_width=True, type="primary"):
-                st.session_state.call_status = "connected"
-                database.check_daily_interaction(supabase, owner_id)
-                st.rerun()
-
-    elif st.session_state.call_status == "connected":
-        if "opening_played" not in st.session_state:
-            op_bytes = audio.get_audio_bytes(supabase, role_name, "opening")
-            if not op_bytes and role_name != "friend": op_bytes = audio.get_audio_bytes(supabase, role_name, "nickname")
-            
-            if role_name == "friend":
-                ai_ask = "你覺得這個AI分身，跟我本尊有幾分像呢？幫我打個分數，拜託了。"
-                ai_wav = audio.generate_speech(ai_ask, tier)
-                final = audio.merge_audio_clips(op_bytes, ai_wav) if op_bytes else ai_wav
-            else:
-                ai_greet = audio.generate_speech("想我嗎？", tier)
-                final = audio.merge_audio_clips(op_bytes, ai_greet) if op_bytes else ai_greet
-            
-            if final: st.audio(final, format="audio/mp3", autoplay=True)
-            st.session_state.opening_played = True
-
-        ui.render_status_bar(tier, energy, 0, audio.get_tts_engine_type(profile), is_guest=True)
-        st.markdown(f"<h4 style='text-align:center;'>與 {display_name} 通話中...</h4>", unsafe_allow_html=True)
+def load_css():
+    st.markdown("""
+    <style>
+        /* --- 1. 全局設定 --- */
+        .stApp, p, h1, h2, h3, h4, h5, h6, label, span, div, li { 
+            color: #FAFAFA !important; 
+        }
         
-        if role_name == "friend":
-            parrot_mode = st.toggle("🦜 九官鳥模式")
-            cost = 0
-        else:
-            parrot_mode = False
-            use_high = st.toggle("👑 高傳真線路 (消耗2電量)", value=False)
-            cost = 2 if use_high else 1
+        /* 修正標題被切掉的問題：加大頂部間距 */
+        .block-container {
+            padding-top: 3rem !important; /* 加大到 3rem */
+            padding-bottom: 3rem !important;
+            max-width: 1000px !important;
+        }
 
-        if energy <= 0:
-            st.error("💔 電量耗盡")
-            if st.button(f"🔋 幫 {display_name} 儲值 $88"):
-                database.update_profile_stats(supabase, owner_id, energy_delta=100)
-                st.rerun()
-        else:
-            audio_val = st.audio_input("請說話...", key="guest_rec")
-            if audio_val:
-                try:
-                    database.update_profile_stats(supabase, owner_id, energy_delta=-cost)
-                    user_text = brain.transcribe_audio(audio_val)
-                    if len(user_text.strip()) > 0:
-                        with st.spinner("..."):
-                            if parrot_mode: ai_text = user_text
-                            else:
-                                mems = database.get_all_memories_text(supabase, role_name)
-                                has_nick = audio.get_audio_bytes(supabase, role_name, "nickname") is not None
-                                ai_text = brain.think_and_reply(tier, persona_data, mems, user_text, has_nick)
-                            
-                            forced_tier = 'advanced' if (role_name!="friend" and use_high) else 'basic'
-                            wav = audio.generate_speech(ai_text, forced_tier)
-                            final = wav
-                            if not parrot_mode and has_nick and wav:
-                                nb = audio.get_audio_bytes(supabase, role_name, "nickname")
-                                if nb: final = audio.merge_audio_clips(nb, wav)
-                            
-                            st.audio(final, format="audio/mp3", autoplay=True)
-                            st.markdown(f'<div class="ai-bubble">{ai_text}</div>', unsafe_allow_html=True)
-                except: st.error("連線不穩")
+        /* 移除分隔線 */
+        hr { display: none !important; }
+        
+        /* --- 2. 移除強制不換行 (關鍵修正) --- */
+        /* 
+           我移除了之前導致手機版按鈕被擠扁的 flex-wrap: nowrap 設定。
+           現在 Streamlit 會自動判斷：電腦版並排，手機版自動變成上下堆疊 (更適合手機操作)。
+        */
 
-    st.divider()
-    if st.button("🔴 掛斷"):
-        st.session_state.guest_data = None
-        st.session_state.call_status = "ringing"
-        if "opening_played" in st.session_state: del st.session_state["opening_played"]
-        st.query_params.clear()
-        st.rerun()
+        /* --- 3. 標題與副標題 --- */
+        .header-title h1 {
+            font-size: 32px !important;
+            margin-bottom: 5px !important;
+            padding: 0 !important;
+            text-shadow: 0 0 15px rgba(124, 77, 255, 0.6);
+            line-height: 1.2;
+        }
+        .header-subtitle {
+            font-size: 16px !important;
+            color: #CCC !important;
+            margin-top: 0px !important;
+            margin-bottom: 20px !important;
+            font-weight: 400;
+        }
+        
+        /* --- 4. 右上角用戶資訊區 (電腦版) --- */
+        .user-info-container {
+            display: flex;
+            flex-direction: row;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 15px; 
+            height: 100%;
+            padding-top: 15px; 
+        }
+        .user-email-text {
+            font-size: 13px;
+            color: #888 !important;
+            white-space: nowrap;
+        }
+
+        /* --- 5. 圓形進度條 (Stepper) --- */
+        /* 電腦版樣式 */
+        .step-wrapper { 
+            display: flex; 
+            justify-content: center;
+            align-items: center;
+            gap: 0; 
+            margin: 10px 0 20px 0;
+            position: relative;
+        }
+        .step-item { 
+            text-align: center; position: relative; z-index: 2; padding: 0 25px;
+        }
+        .step-circle {
+            width: 28px; height: 28px;
+            border-radius: 50%; background: #1E1E1E; margin: 0 auto 5px;
+            display: flex; align-items: center; justify-content: center; 
+            font-weight: bold; color: #666; font-size: 12px;
+            border: 2px solid #444; transition: all 0.3s;
+        }
+        .step-line-bg {
+            position: absolute; top: 14px; left: 50px; right: 50px; height: 2px;
+            background: #333; z-index: 1;
+        }
+        .step-active .step-circle {
+            background: #FF4B4B; color: white; border-color: #FF4B4B;
+            box-shadow: 0 0 10px rgba(255, 75, 75, 0.6);
+        }
+        .step-active .step-label { color: #FF4B4B; font-weight: bold; }
+        .step-label { font-size: 12px; color: #888; }
+
+        /* --- 6. 狀態列 --- */
+        .status-bar {
+            background: linear-gradient(90deg, #1E1E1E 0%, #252525 100%);
+            border: 1px solid #333;
+            padding: 10px 20px;
+            border-radius: 8px;
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px; 
+            font-size: 14px;
+        }
+        .status-item { margin-left: 15px; color: #BBB !important; }
+        .status-value { color: #FFD700 !important; font-weight: bold; }
+
+        /* --- 其他元件 --- */
+        .question-card-active {
+            background-color: #1A1C24; padding: 20px; border-radius: 12px;
+            border: 2px solid #2196F3; text-align: center; margin-bottom: 20px;
+        }
+        .q-text { font-size: 20px; color: #FFFFFF !important; font-weight: bold; margin: 10px 0; }
+        
+        .history-card { 
+            background-color: #262730; padding: 12px; border: 1px solid #444; 
+            border-radius: 8px; margin-bottom: 8px; 
+        }
+        .script-box { 
+            background: #1E1E1E; padding: 15px; border-radius: 8px; margin: 10px 0; 
+            border-left: 4px solid #FFD700; color: #DDD !important;
+        }
+        .ai-bubble {
+            background-color: #262730; padding: 15px; border-radius: 10px;
+            border-left: 3px solid #FF4B4B; margin: 10px 0; color: #E0E0E0 !important;
+        }
+        .dashboard-card {
+            background-color: #1A1C24; padding: 15px; border-radius: 10px;
+            border: 1px solid #333; text-align: center; margin-bottom: 10px;
+        }
+
+        /* 輸入框與按鈕 */
+        input, textarea, .stSelectbox > div > div {
+            background-color: #1F2229 !important; color: #FAFAFA !important; border: 1px solid #444 !important;
+        }
+        div[data-baseweb="popover"] li:hover { background-color: #FF4B4B !important; }
+        button[kind="primary"] { background-color: #FF4B4B !important; color: white !important; border: none; }
+        
+        #MainMenu, footer {visibility: hidden;}
+
+        /* =============================================
+           7. 手機版專用修正 (Mobile RWD)
+           ============================================= */
+        @media only screen and (max-width: 600px) {
+            
+            /* (1) 隱藏 Email，右上角只留登出按鈕 */
+            .user-email-text { display: none !important; }
+            .user-info-container { padding-top: 0 !important; }
+            
+            /* (2) 手機版標題再縮小一點，避免換行 */
+            .header-title h1 { font-size: 26px !important; }
+
+            /* (3) Stepper 縮放與隱藏線條 */
+            .step-wrapper {
+                transform: scale(0.85); /* 縮小 */
+                margin: 0;
+                width: 110%; margin-left: -5%; /* 修正置中 */
+            }
+            .step-line-bg { display: none !important; }
+            .step-item { padding: 0 2px !important; }
+            .step-circle { width: 24px; height: 24px; font-size: 10px; margin-bottom: 2px; }
+            .step-label { font-size: 9px; }
+
+            /* (4) 狀態列垂直排列 (避免擠在一起) */
+            .status-bar {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+            .status-item { margin-left: 0 !important; margin-right: 10px; font-size: 12px; }
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+def render_stepper(current_step):
+    steps = ["喚名", "安慰", "鼓勵", "詼諧", "完成"]
+    items_html = ""
+    for i, name in enumerate(steps):
+        is_active = "step-active" if i + 1 == current_step else ""
+        items_html += f"""<div class="step-item {is_active}"><div class="step-circle">{i+1}</div><div class="step-label">{name}</div></div>"""
+    st.markdown(f"""<div class="step-wrapper"><div class="step-line-bg"></div>{items_html}</div>""", unsafe_allow_html=True)
+
+def render_status_bar(tier, energy, xp, engine_type, is_guest=False):
+    tier_map = {"basic": "初級練習生", "intermediate": "中級守護者", "advanced": "高級刻錄師", "eternal": "永恆上鏈"}
+    tier_name = tier_map.get(tier, tier)
     
-    if role_name == "friend":
-        st.info("😲 覺得像嗎？註冊免費獲得您的 AI 分身 👇")
-        if st.button("👉 點此註冊"):
-            st.session_state.guest_data = None
-            st.query_params.clear()
-            st.rerun()
-
-# ------------------------------------------
-# 情境 B: 未登入
-# ------------------------------------------
-elif not st.session_state.user:
-    cookies = cookie_manager.get_all()
-    saved_email = cookies.get("member_email", "")
-    saved_token = cookies.get("guest_token", "")
-    col1, col2 = st.columns([1, 1], gap="large")
-    with col1:
-        st.markdown("## 👋 我是親友")
-        token_input = st.text_input("通行碼", value=saved_token, placeholder="A8K29")
-        if st.button("🚀 開始對話", type="primary"):
-            d = database.validate_token(supabase, token_input.strip())
-            if d:
-                cookie_manager.set("guest_token", token_input.strip(), expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
-                st.session_state.guest_data = {'owner_id': d['user_id'], 'role': d['role']}
-                st.rerun()
-            else: st.error("無效")
-    with col2:
-        st.markdown("## 👤 我是會員")
-        tab_l, tab_s = st.tabs(["登入", "註冊"])
-        with tab_l:
-            with st.form("login"):
-                le = st.text_input("Email", value=saved_email)
-                lp = st.text_input("密碼", type="password")
-                if st.form_submit_button("登入"):
-                    r = auth.login_user(supabase, le, lp)
-                    if r and r.user:
-                        cookie_manager.set("member_email", le, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
-                        st.session_state.user = r
-                        st.rerun()
-                    else: st.error("失敗")
-        with tab_s:
-            se = st.text_input("Email", key="se")
-            sp = st.text_input("密碼", type="password", key="sp")
-            if st.button("註冊"):
-                r = auth.signup_user(supabase, se, sp)
-                if r and r.user:
-                    database.get_user_profile(supabase, r.user.id)
-                    st.session_state.user = r
-                    st.success("成功")
-                    st.rerun()
-                else: st.error("失敗")
-
-# ------------------------------------------
-# 情境 C: 會員後台
-# ------------------------------------------
-else:
-    profile = database.get_user_profile(supabase)
-    tier = profile.get('tier', 'basic')
-    xp = profile.get('xp', 0)
-    energy = profile.get('energy', 30)
+    if engine_type == "elevenlabs": engine_info = "🚀 Gemini Pro"
+    else: engine_info = "⚡ Gemini Flash"
     
-    # 1. 頂部 Header
-    c1, c2 = st.columns([7, 3])
+    if tier == "basic": icon = "🚀"
+    elif tier == "intermediate": icon = "🛡️"
+    elif tier == "advanced": icon = "🔥"
+    else: icon = "♾️"
+
+    user_label = "👋 訪客" if is_guest else f"{icon} {tier_name}"
+    xp_html = f'<span class="status-item">⭐ XP: <span class="status-value">{xp}</span></span>' if not is_guest else ''
     
-    with c1:
-        st.markdown("""
-        <div class="header-title">
-            <h1>🌌 元宇宙聲紋站</h1>
-            <p class="header-subtitle">元宇宙的第一張通行證：鎸刻你的數位聲紋</p>
+    st.markdown(f"""
+    <div class="status-bar">
+        <div style="font-weight:bold; color:#FFF;">{user_label}</div>
+        <div>
+            <span class="status-item">❤️ 電量: <span class="status-value" style="color:#FF4081!important;">{energy}</span></span>
+            {xp_html}
+            <span class="status-item">| {engine_info}</span>
         </div>
-        """, unsafe_allow_html=True)
-        
-    with c2:
-        with st.container():
-            st.markdown(f"<div class='user-info-container'><div class='user-email-text'>{st.session_state.user.user.email}</div></div>", unsafe_allow_html=True)
-            if st.button("登出", use_container_width=True):
-                supabase.auth.sign_out()
-                st.session_state.user = None
-                st.rerun()
+    </div>
+    """, unsafe_allow_html=True)
 
-    st.divider()
+def render_question_card(question, index, total):
+    st.markdown(f"""<div class="question-card-active"><div style="color:#888; font-size:12px; margin-bottom:5px;">PROGRESS {index}/{total}</div><div class="q-text">{question}</div><div style="font-size:13px; color:#AAA; margin-top:10px;">🎙️ 請按下錄音...</div></div>""", unsafe_allow_html=True)
 
-    # 2. 狀態列
-    ui.render_status_bar(tier, energy, xp, audio.get_tts_engine_type(profile))
-    
-    # 3. 角色與分享
-    allowed = ["朋友/死黨"]
-    if tier != 'basic' or xp >= 20: allowed = list(config.ROLE_MAPPING.keys())
-    
-    c_role, c_btn = st.columns([7, 3])
-    with c_role:
-        disp_role = st.selectbox("選擇對象", allowed, label_visibility="collapsed")
-        target_role = config.ROLE_MAPPING[disp_role]
-    
-    # 【關鍵修正】先定義 has_op 再使用
-    has_op = audio.get_audio_bytes(supabase, target_role, "opening")
-    
-    with c_btn:
-        st.write("") # Spacer
-        if st.button("🎁 生成邀請卡", type="primary", use_container_width=True):
-            token = database.create_share_token(supabase, target_role)
-            st.session_state.current_token = token
-            st.session_state.show_invite = True
+def render_history_card(q, a):
+    st.markdown(f"""<div class="history-card"><b style="color:#FF4B4B;">Q: {q}</b><br><span style="color:#CCC; font-size:13px;">{a[:40]}...</span></div>""", unsafe_allow_html=True)
 
-    if not has_op and target_role == "friend": st.caption("⚠️ 尚未錄製口頭禪")
-
-    if st.session_state.show_invite:
-        tk = st.session_state.get("current_token", "ERR")
-        pd = database.load_persona(supabase, target_role)
-        mn = pd.get('member_nickname', '我') if pd else '我'
-        url = f"https://missyou.streamlit.app/?token={tk}_{mn}"
-        
-        st.success(f"💌 邀請連結 ({disp_role})")
-        st.code(url)
-        if st.button("❌ 關閉"): st.session_state.show_invite = False
-        st.divider()
-
-    # 4. Tab 分頁
-    t1, t2, t3, t4 = st.tabs(["🧬 聲紋訓練", "💎 等級說明", "📝 人設補完", "🧠 回憶補完"])
-
-    with t1: tab_voice.render(supabase, client, st.session_state.user.user.id, target_role, tier)
-    with t2: tab_store.render(supabase, st.session_state.user.user.id, xp)
-    with t3: tab_persona.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp)
-    with t4: tab_memory.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp, question_db)
+def render_dashboard_card(title, content):
+    st.markdown(f"""<div class="dashboard-card"><div style="color:#888; font-size:13px; margin-bottom:5px;">{title}</div><div style="font-size:24px; font-weight:bold; color:#FAFAFA;">{content}</div></div>""", unsafe_allow_html=True)
