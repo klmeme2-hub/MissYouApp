@@ -3,91 +3,49 @@ import streamlit as st
 def load_css():
     st.markdown("""
     <style>
-        /* --- 1. 全局設定 --- */
+        /* =============================================
+           1. 全局基礎設定 (電腦/手機通用)
+           ============================================= */
         .stApp, p, h1, h2, h3, h4, h5, h6, label, span, div, li { 
             color: #FAFAFA !important; 
         }
         
-        /* [電腦版] 預設寬度 */
+        /* 電腦版寬度設定 */
         .block-container {
             padding-top: 1rem !important;
-            padding-bottom: 2rem !important;
+            padding-bottom: 3rem !important;
             max-width: 1000px !important;
         }
 
-        /* --- 2. 手機版專用修正 (RWD) --- */
-        @media only screen and (max-width: 600px) {
-            /* 手機版：寬度佔滿，不要留白 */
-            .block-container {
-                max-width: 100% !important;
-                padding-left: 1rem !important;
-                padding-right: 1rem !important;
-            }
-            
-            /* 手機版：標題縮小 */
-            .header-title h1 {
-                font-size: 24px !important;
-            }
-            .header-subtitle {
-                font-size: 14px !important;
-            }
-            
-            /* 手機版：右上角資訊改為直式排列，或隱藏 Email */
-            .user-info-container {
-                flex-direction: column;
-                align-items: flex-end;
-                gap: 5px;
-                padding-top: 10px;
-            }
-            .user-email-text {
-                font-size: 10px; /* Email 縮小 */
-            }
-            
-            /* 手機版：狀態列改為垂直堆疊 */
-            .status-bar {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 10px;
-            }
-            
-            /* 手機版：Stepper 圓圈縮小 */
-            .step-circle {
-                width: 20px; height: 20px; font-size: 10px;
-            }
-            .step-item {
-                padding: 0 5px; /* 縮小間距 */
-            }
-            /* 手機版：隱藏連接線 (避免太擁擠) */
-            .step-item::after {
-                display: none; 
-            }
-            .step-label {
-                font-size: 9px;
-            }
-        }
-        
-        /* --- 以下為通用樣式 (維持不變) --- */
-        
-        /* 移除分隔線 */
+        /* 移除所有預設分隔線 */
         hr { display: none !important; }
         
-        /* 標題樣式 */
-        .header-title h1 {
-            font-size: 32px;
+        /* 縮小所有 Streamlit 元件的預設垂直間距 (關鍵！) */
+        .stElementContainer {
+            margin-bottom: -15px !important; /* 讓元件靠得非常近 */
+        }
+        /* 針對按鈕和輸入框稍微放寬一點，避免重疊 */
+        div[data-testid="stButton"], div[data-testid="stSelectbox"] {
             margin-bottom: 5px !important;
+        }
+
+        /* --- 2. 元件樣式 (Header, Card, etc.) --- */
+        .header-title h1 {
+            font-size: 32px !important;
+            margin-bottom: 0 !important;
             padding: 0 !important;
             text-shadow: 0 0 15px rgba(124, 77, 255, 0.6);
             line-height: 1.2;
         }
         .header-subtitle {
-            font-size: 18px;
+            font-size: 16px !important;
             color: #CCC !important;
-            margin-top: 0px !important;
-            margin-bottom: 15px !important;
+            margin-top: 5px !important;
+            margin-bottom: 20px !important;
             font-weight: 400;
         }
         
-        /* 右上角用戶資訊 */
+        /* 右上角用戶資訊區 (電腦版) */
         .user-info-container {
             display: flex;
             flex-direction: row;
@@ -103,17 +61,6 @@ def load_css():
             white-space: nowrap;
         }
 
-        /* Tab 樣式 */
-        button[data-baseweb="tab"] div {
-            font-size: 18px !important;
-            font-weight: 600 !important;
-            padding: 5px 15px !important;
-        }
-        button[data-baseweb="tab"][aria-selected="true"] div {
-            color: #FF4B4B !important;
-            border-bottom-color: #FF4B4B !important;
-        }
-
         /* 狀態列 */
         .status-bar {
             background: linear-gradient(90deg, #1E1E1E 0%, #252525 100%);
@@ -121,27 +68,20 @@ def load_css():
             padding: 10px 20px;
             border-radius: 8px;
             display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 20px; 
-            font-size: 14px;
+            margin-bottom: 20px; font-size: 14px;
         }
         .status-item { margin-left: 15px; color: #BBB !important; }
         .status-value { color: #FFD700 !important; font-weight: bold; }
 
-        /* Stepper */
+        /* Stepper (電腦版) */
         .step-wrapper { 
-            display: flex; 
-            justify-content: center;
-            align-items: center;
-            gap: 0; 
-            margin: 5px 0 15px 0;
-            position: relative;
+            display: flex; justify-content: center; align-items: center;
+            gap: 0; margin: 15px 0; position: relative;
+            transform-origin: top center; /* 縮放錨點 */
         }
-        .step-item { 
-            text-align: center; position: relative; z-index: 2; padding: 0 25px;
-        }
+        .step-item { text-align: center; position: relative; z-index: 2; padding: 0 25px; }
         .step-circle {
-            width: 28px; height: 28px;
-            border-radius: 50%; background: #1E1E1E; margin: 0 auto 5px;
+            width: 28px; height: 28px; border-radius: 50%; background: #1E1E1E; margin: 0 auto 5px;
             display: flex; align-items: center; justify-content: center; 
             font-weight: bold; color: #666; font-size: 12px;
             border: 2px solid #444; transition: all 0.3s;
@@ -157,29 +97,6 @@ def load_css():
         .step-active .step-label { color: #FF4B4B; font-weight: bold; }
         .step-label { font-size: 12px; color: #888; }
 
-        /* 卡片與氣泡 */
-        .question-card-active {
-            background-color: #1A1C24; padding: 20px; border-radius: 12px;
-            border: 2px solid #2196F3; text-align: center; margin-bottom: 20px;
-        }
-        .q-text { font-size: 20px; color: #FFFFFF !important; font-weight: bold; margin: 10px 0; }
-        .history-card { 
-            background-color: #262730; padding: 12px; border: 1px solid #444; 
-            border-radius: 8px; margin-bottom: 8px; 
-        }
-        .script-box { 
-            background: #1E1E1E; padding: 15px; border-radius: 8px; margin: 10px 0; 
-            border-left: 4px solid #FFD700; color: #DDD !important;
-        }
-        .ai-bubble {
-            background-color: #262730; padding: 15px; border-radius: 10px;
-            border-left: 3px solid #FF4B4B; margin: 10px 0; color: #E0E0E0 !important;
-        }
-        .dashboard-card {
-            background-color: #1A1C24; padding: 15px; border-radius: 10px;
-            border: 1px solid #333; text-align: center; margin-bottom: 10px;
-        }
-
         /* 輸入框與按鈕 */
         input, textarea, .stSelectbox > div > div {
             background-color: #1F2229 !important; color: #FAFAFA !important; border: 1px solid #444 !important;
@@ -187,25 +104,73 @@ def load_css():
         div[data-baseweb="popover"] li:hover { background-color: #FF4B4B !important; }
         button[kind="primary"] { background-color: #FF4B4B !important; color: white !important; border: none; }
         
+        /* 隱藏 */
         #MainMenu, footer {visibility: hidden;}
+
+        /* =============================================
+           3. 手機版專用修正 (Mobile RWD) - 針對 < 600px 螢幕
+           ============================================= */
+        @media only screen and (max-width: 600px) {
+            
+            /* (1) 頂部縮小 */
+            .header-title h1 { font-size: 24px !important; }
+            .header-subtitle { font-size: 12px !important; margin-bottom: 5px !important; }
+            
+            /* (2) 隱藏 Email，只保留按鈕 */
+            .user-email-text { display: none !important; }
+            .user-info-container { padding-top: 0 !important; }
+            
+            /* (3) 強制「控制台區」並排顯示 (解決浪費版面) */
+            /* Streamlit 預設在手機會把 columns 變成垂直堆疊，這裡強制改回水平 */
+            [data-testid="stHorizontalBlock"] {
+                flex-wrap: nowrap !important; /* 禁止換行 */
+                gap: 5px !important;
+            }
+            [data-testid="column"] {
+                min-width: 0 !important; /* 允許縮到最小 */
+                width: auto !important;
+            }
+            
+            /* (4) Tab 標籤字體縮小 */
+            button[data-baseweb="tab"] div {
+                font-size: 14px !important;
+                padding: 5px 8px !important;
+            }
+            
+            /* (5) Stepper 整體縮小 (0.7倍) 且隱藏連接線 */
+            .step-wrapper {
+                transform: scale(0.75); /* 整體縮小 */
+                margin: -10px 0 0px 0 !important; /* 調整縮放後的留白 */
+                width: 120%; /* 放大容器寬度以免縮放後被裁切 */
+                margin-left: -10%; /* 修正置中 */
+            }
+            .step-line-bg { display: none !important; } /* 隱藏線條讓畫面更乾淨 */
+            .step-item { padding: 0 5px !important; } /* 極致縮小間距 */
+            
+            /* (6) 狀態列變成垂直堆疊 */
+            .status-bar {
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 10px;
+                gap: 5px;
+            }
+            .status-item { margin-left: 0 !important; margin-right: 10px; font-size: 12px; }
+        }
     </style>
     """, unsafe_allow_html=True)
 
 def render_stepper(current_step):
-    steps = ["喚名/口頭禪", "安慰", "鼓勵", "詼諧", "完成"]
+    steps = ["喚名", "安慰", "鼓勵", "詼諧", "完成"] # 縮短文字以適應手機
     items_html = ""
     for i, name in enumerate(steps):
         is_active = "step-active" if i + 1 == current_step else ""
         items_html += f"""<div class="step-item {is_active}"><div class="step-circle">{i+1}</div><div class="step-label">{name}</div></div>"""
-    # 注意：這裡保留 step-line-bg，但 CSS 裡針對手機版將其 display: none
     st.markdown(f"""<div class="step-wrapper"><div class="step-line-bg"></div>{items_html}</div>""", unsafe_allow_html=True)
 
 def render_status_bar(tier, energy, xp, engine_type, is_guest=False):
     tier_map = {"basic": "初級練習生", "intermediate": "中級守護者", "advanced": "高級刻錄師", "eternal": "永恆上鏈"}
     tier_name = tier_map.get(tier, tier)
-    
-    if engine_type == "elevenlabs": engine_info = "🚀 Gemini Pro"
-    else: engine_info = "⚡ Gemini Flash"
+    engine_name = "Gemini Pro" if engine_type == "elevenlabs" else "Gemini Flash"
     
     if tier == "basic": icon = "🚀"
     elif tier == "intermediate": icon = "🛡️"
@@ -221,11 +186,12 @@ def render_status_bar(tier, energy, xp, engine_type, is_guest=False):
         <div>
             <span class="status-item">❤️ 電量: <span class="status-value" style="color:#FF4081!important;">{energy}</span></span>
             {xp_html}
-            <span class="status-item">| {engine_info}</span>
+            <span class="status-item">| {engine_name}</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
+# ... (其他的 render_card 函數維持不變) ...
 def render_question_card(question, index, total):
     st.markdown(f"""<div class="question-card-active"><div style="color:#888; font-size:12px; margin-bottom:5px;">PROGRESS {index}/{total}</div><div class="q-text">{question}</div><div style="font-size:13px; color:#AAA; margin-top:10px;">🎙️ 請按下錄音...</div></div>""", unsafe_allow_html=True)
 
