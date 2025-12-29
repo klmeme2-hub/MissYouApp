@@ -67,6 +67,8 @@ def render(supabase, client, user_id, target_role, tier):
         st.markdown(f"##### {sound_label}")
         st.write(sound_desc)
         st.caption(sound_hint)
+        # 在錄音按鈕前加入提示
+        st.info("💡 手機用戶請注意：若無法錄音，請點擊右上角選單，選擇「在瀏覽器(Chrome/Safari)中開啟」，並允許麥克風權限。")
         rec = st.audio_input("錄音 (2-3秒)", key="s1_rec")
 
         # --- 存檔邏輯 ---
