@@ -38,9 +38,10 @@ def render(supabase, client, user_id, target_role, tier):
             
             sound_label = "2. 錄製開場白"
             sound_desc = "留一句話給換帖的拜把兄弟，讓他接起電話寒毛直豎。"
-            sound_hint = "👉 **建議錄製：** 「買霸未？」 或 「好久不見！！」 或 您的招牌口頭禪"
+            # 【修正】文字修正為 呷飽未
+            sound_hint = "👉 **建議錄製：** 「呷飽未？」 或 「好久不見！！」 或 您的招牌口頭禪"
 
-        # --- 情境 B: 家人/伴侶 (已移除暱稱文字輸入框) ---
+        # --- 情境 B: 家人/伴侶 ---
         else:
             st.subheader("STEP 1: 輕輕喚你的名 ❤️")
             ai_demo_text = "想我嗎？"
@@ -63,16 +64,17 @@ def render(supabase, client, user_id, target_role, tier):
         
         st.markdown("") # 間距
         
-        # 區塊 2: 錄音 (直接顯示錄音按鈕，不需文字框)
+        # 區塊 2: 錄音
         st.markdown(f"##### {sound_label}")
         st.write(sound_desc)
         st.caption(sound_hint)
-        # 在錄音按鈕前加入提示
-        st.info("💡 手機用戶請注意：若無法錄音，請點擊右上角選單，選擇「在瀏覽器(Chrome/Safari)中開啟」，並允許麥克風權限。")
+
+        # 【新增】手機錄音權限提示 (醒目顯示)
+        st.warning("📱 **手機用戶注意：** 若無法錄音，請點擊 LINE/FB 右上角選單，選擇**「在瀏覽器開啟 (Chrome/Safari)」**並允許麥克風權限。")
+        
         rec = st.audio_input("錄音 (2-3秒)", key="s1_rec")
 
         # --- 存檔邏輯 ---
-        # 條件：必須有錄音 + 必須有輸入身分
         can_save = rec and member_nick
         
         if can_save:
@@ -80,29 +82,26 @@ def render(supabase, client, user_id, target_role, tier):
                 with st.spinner("處理中..."):
                     audio_bytes = rec.read()
                     
-                    # 1. 儲存身分與人設
+                    # 1. 儲存身分
                     p = database.load_persona(supabase, target_role)
                     content = p['content'] if p else "尚未設定人設"
-                    # 更新 member_nickname
                     database.save_persona_summary(supabase, target_role, content, member_nickname=member_nick)
 
                     # 2. 儲存音檔
                     if target_role == "friend":
-                        # 朋友模式：只存為 opening (開場白)
                         audio.upload_audio_file(supabase, target_role, audio_bytes, "opening")
                     else:
-                        # 家人模式：同時存為 nickname (對話拼接用) 和 opening (開場檢查用)
                         audio.upload_audio_file(supabase, target_role, audio_bytes, "nickname")
                         audio.upload_audio_file(supabase, target_role, audio_bytes, "opening")
                     
-                    # 3. 訓練 AI Voice ID
+                    # 3. 訓練 AI
                     rec.seek(0)
                     audio.train_voice_sample(rec.read())
                     
                     # 4. 獎勵積分
                     database.update_profile_stats(supabase, user_id, xp_delta=1, log_reason="完成Step1")
                     
-                    # 5. 試聽拼接
+                    # 5. 試聽
                     ai_wav = audio.generate_speech(ai_demo_text, tier)
                     final = audio.merge_audio_clips(audio_bytes, ai_wav)
                     
@@ -114,7 +113,7 @@ def render(supabase, client, user_id, target_role, tier):
             st.rerun()
 
     # ==========================================
-    # STEP 2-4: 情緒腳本 (維持不變)
+    # STEP 2-4: 情緒腳本
     # ==========================================
     elif st.session_state.step in [2, 3, 4]:
         scripts = {
@@ -126,6 +125,9 @@ def render(supabase, client, user_id, target_role, tier):
         title, content = scripts.get(st.session_state.step, ("標題", "內容"))
         st.subheader(f"STEP {st.session_state.step}: {title}")
         st.markdown(f'<div class="script-box">{content}</div>', unsafe_allow_html=True)
+        
+        # 這裡也加上提示，因為這裡也需要錄音
+        st.warning("📱 手機若無法錄音，請用 Chrome/Safari 開啟。")
         
         rec = st.audio_input("請朗讀上方文字", key=f"step{st.session_state.step}_rec")
         if rec:
