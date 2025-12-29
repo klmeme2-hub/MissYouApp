@@ -8,17 +8,17 @@ def load_css():
             color: #FAFAFA !important; 
         }
         
-        /* 電腦版寬度設定 */
+        /* 調整主區塊寬度 (1000px) */
         .block-container {
-            padding-top: 1rem !important;
+            padding-top: 2rem !important; /* 保持適當頂部距離 */
             padding-bottom: 3rem !important;
             max-width: 1000px !important;
         }
 
-        /* 移除所有預設分隔線 */
+        /* 移除分隔線 */
         hr { display: none !important; }
         
-        /* 縮小所有 Streamlit 元件的預設垂直間距 */
+        /* 縮小元件垂直間距 */
         .stElementContainer {
             margin-bottom: -15px !important;
         }
@@ -26,59 +26,72 @@ def load_css():
             margin-bottom: 5px !important;
         }
 
-        /* --- 2. 元件樣式 --- */
+        /* --- 2. 頂部標題區域 --- */
+        .header-container {
+            display: flex;
+            align-items: flex-end; /* 底部對齊 */
+        }
+        
         .header-title h1 {
-            font-size: 32px !important;
-            margin-bottom: 0 !important;
-            padding: 0 !important;
+            font-size: 36px !important;
+            margin-bottom: 0px !important;
+            padding-top: 0 !important;
             text-shadow: 0 0 15px rgba(124, 77, 255, 0.6);
-            line-height: 1.2;
+            line-height: 1.1;
         }
         .header-subtitle {
             font-size: 16px !important;
-            color: #CCC !important;
+            color: #BBB !important;
             margin-top: 5px !important;
-            margin-bottom: 20px !important;
+            margin-bottom: 0px !important; /* 移除下方留白，讓紅線貼近 */
             font-weight: 400;
         }
         
-        /* 右上角用戶資訊區 */
+        /* --- 右上角用戶資訊區 (關鍵修復) --- */
         .user-info-container {
             display: flex;
-            flex-direction: row;
-            justify-content: flex-end;
-            align-items: center;
-            gap: 15px; 
-            height: 100%;
-            padding-top: 15px; 
+            flex-direction: column; /* 垂直排列：Email 在上，按鈕在下 */
+            justify-content: flex-end; /* 靠底部對齊 */
+            align-items: flex-end; /* 靠右對齊 */
+            height: 80px; /* 給予高度以確保能沉底 */
+            padding-bottom: 5px;
         }
         .user-email-text {
-            font-size: 13px;
+            font-size: 12px;
             color: #888 !important;
-            white-space: nowrap;
+            margin-bottom: 2px; /* Email 與按鈕的間距 */
+            text-align: right;
         }
 
-        /* 狀態列 */
+        /* --- 3. 狀態列 --- */
         .status-bar {
             background: linear-gradient(90deg, #1E1E1E 0%, #252525 100%);
             border: 1px solid #333;
             padding: 10px 20px;
             border-radius: 8px;
             display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 20px; font-size: 14px;
+            margin-top: 20px; /* 與上方標題的距離 */
+            margin-bottom: 20px; 
+            font-size: 14px;
         }
         .status-item { margin-left: 15px; color: #BBB !important; }
         .status-value { color: #FFD700 !important; font-weight: bold; }
 
-        /* Stepper (電腦版) */
+        /* --- 4. 圓形進度條 (Stepper) --- */
         .step-wrapper { 
-            display: flex; justify-content: center; align-items: center;
-            gap: 0; margin: 15px 0; position: relative;
-            transform-origin: top center;
+            display: flex; 
+            justify-content: center;
+            align-items: center;
+            gap: 0; 
+            margin: 20px 0;
+            position: relative;
         }
-        .step-item { text-align: center; position: relative; z-index: 2; padding: 0 25px; }
+        .step-item { 
+            text-align: center; position: relative; z-index: 2; padding: 0 25px;
+        }
         .step-circle {
-            width: 28px; height: 28px; border-radius: 50%; background: #1E1E1E; margin: 0 auto 5px;
+            width: 28px; height: 28px;
+            border-radius: 50%; background: #1E1E1E; margin: 0 auto 5px;
             display: flex; align-items: center; justify-content: center; 
             font-weight: bold; color: #666; font-size: 12px;
             border: 2px solid #444; transition: all 0.3s;
@@ -94,6 +107,29 @@ def load_css():
         .step-active .step-label { color: #FF4B4B; font-weight: bold; }
         .step-label { font-size: 12px; color: #888; }
 
+        /* --- 其他元件 --- */
+        .question-card-active {
+            background-color: #1A1C24; padding: 20px; border-radius: 12px;
+            border: 2px solid #2196F3; text-align: center; margin-bottom: 20px;
+        }
+        .q-text { font-size: 20px; color: #FFFFFF !important; font-weight: bold; margin: 10px 0; }
+        .history-card { 
+            background-color: #262730; padding: 12px; border: 1px solid #444; 
+            border-radius: 8px; margin-bottom: 8px; 
+        }
+        .script-box { 
+            background: #1E1E1E; padding: 15px; border-radius: 8px; margin: 10px 0; 
+            border-left: 4px solid #FFD700; color: #DDD !important;
+        }
+        .ai-bubble {
+            background-color: #262730; padding: 15px; border-radius: 10px;
+            border-left: 3px solid #FF4B4B; margin: 10px 0; color: #E0E0E0 !important;
+        }
+        .dashboard-card {
+            background-color: #1A1C24; padding: 15px; border-radius: 10px;
+            border: 1px solid #333; text-align: center; margin-bottom: 10px;
+        }
+
         /* 輸入框與按鈕 */
         input, textarea, .stSelectbox > div > div {
             background-color: #1F2229 !important; color: #FAFAFA !important; border: 1px solid #444 !important;
@@ -103,50 +139,14 @@ def load_css():
         
         #MainMenu, footer {visibility: hidden;}
 
-        /* =============================================
-           3. 手機版專用修正 (Mobile RWD)
-           ============================================= */
+        /* 手機版修正 */
         @media only screen and (max-width: 600px) {
             .header-title h1 { font-size: 24px !important; }
-            .header-subtitle { font-size: 12px !important; margin-bottom: 5px !important; }
-            
-            /* 隱藏 Email */
-            .user-email-text { display: none !important; }
-            .user-info-container { padding-top: 0 !important; }
-            
-            /* 強制並排 */
-            [data-testid="stHorizontalBlock"] {
-                flex-wrap: nowrap !important;
-                gap: 5px !important;
-            }
-            [data-testid="column"] {
-                min-width: 0 !important;
-                width: auto !important;
-            }
-            
-            /* Tab 縮小 */
-            button[data-baseweb="tab"] div {
-                font-size: 14px !important;
-                padding: 5px 8px !important;
-            }
-            
-            /* Stepper 縮小 */
-            .step-wrapper {
-                transform: scale(0.75);
-                margin: -10px 0 0px 0 !important;
-                width: 120%; margin-left: -10%;
-            }
+            .user-info-container { display: none !important; } /* 手機版隱藏右上資訊 */
+            .step-wrapper { transform: scale(0.85); width: 110%; margin-left: -5%; }
             .step-line-bg { display: none !important; }
-            .step-item { padding: 0 5px !important; }
-            
-            /* 狀態列垂直 */
-            .status-bar {
-                flex-direction: column;
-                align-items: flex-start;
-                padding: 10px;
-                gap: 5px;
-            }
-            .status-item { margin-left: 0 !important; margin-right: 10px; font-size: 12px; }
+            .status-bar { flex-direction: column; align-items: flex-start; gap: 5px; }
+            .status-item { margin-left: 0 !important; margin-right: 10px; }
         }
     </style>
     """, unsafe_allow_html=True)
