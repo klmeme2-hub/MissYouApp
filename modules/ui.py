@@ -3,49 +3,48 @@ import streamlit as st
 def load_css():
     st.markdown("""
     <style>
-        /* --- 全局設定 --- */
+        /* --- 1. 全局基礎 (安全版) --- */
         .stApp {
             background-color: #0E1117;
             color: #FAFAFA;
         }
         
-        /* 確保所有文字可見 */
-        h1, h2, h3, h4, h5, h6, p, div, span, label, li, button, .stMarkdown {
-            color: #FAFAFA !important;
-        }
-        
-        /* 調整寬度與邊距 */
+        /* 修正主容器寬度與邊距 */
         .block-container {
             padding-top: 2rem !important;
             padding-bottom: 5rem !important;
-            max-width: 1000px !important;
+            max-width: 1100px !important;
         }
         
         /* 隱藏預設分隔線 */
         hr { display: none !important; }
         
-        /* --- Header 樣式 --- */
+        /* --- 文字顏色修正 (移除 div，避免誤殺) --- */
+        h1, h2, h3, h4, h5, h6, p, span, label, li, button, .stMarkdown {
+            color: #FAFAFA !important;
+            font-family: "Source Sans Pro", sans-serif;
+        }
+
+        /* --- 2. 頂部標題區 --- */
         .header-title {
             font-size: 34px !important;
             font-weight: 700 !important;
-            margin-bottom: 0 !important;
-            display: flex;
-            align-items: center;
-            gap: 15px;
+            margin-bottom: 5px !important;
         }
         .header-subtitle {
             font-size: 16px !important;
             color: #B0B0B0 !important;
-            margin-top: 5px !important;
+            font-weight: 400;
         }
 
-        /* --- 右上角用戶資訊 --- */
+        /* --- 3. 右上角用戶資訊 (修復對齊) --- */
         .user-info-box {
             display: flex;
             flex-direction: column;
-            align-items: flex-end;
+            align-items: flex-end; /* 靠右 */
             justify-content: center;
             height: 100%;
+            margin-top: 10px;
         }
         .user-email {
             font-size: 14px !important;
@@ -53,7 +52,7 @@ def load_css():
             margin-bottom: 5px;
         }
 
-        /* --- 圓形進度條 (Stepper) --- */
+        /* --- 4. 圓形進度條 (Stepper) --- */
         .step-wrapper {
             display: flex;
             justify-content: center;
@@ -66,59 +65,82 @@ def load_css():
             text-align: center;
             position: relative;
             z-index: 2;
-            padding: 0 20px;
+            padding: 0 30px;
         }
         .step-circle {
-            width: 30px; height: 30px;
+            width: 32px; height: 32px;
             border-radius: 50%;
             background: #1E1E1E;
             border: 2px solid #444;
             color: #666;
             display: flex; align-items: center; justify-content: center;
-            font-weight: bold; font-size: 14px;
-            margin: 0 auto 5px;
+            font-weight: bold;
+            font-size: 14px;
+            margin: 0 auto 8px;
+            transition: all 0.3s;
         }
-        .step-label { font-size: 12px; color: #888; }
-        
-        /* 連接線 */
+        .step-label {
+            font-size: 14px;
+            color: #888;
+            font-weight: 500;
+        }
         .step-line-bg {
             position: absolute;
-            top: 15px;
+            top: 16px;
             left: 10%; right: 10%;
-            height: 2px; background: #333; z-index: 1;
+            height: 2px;
+            background: #333;
+            z-index: 1;
         }
-        
-        /* 激活狀態 */
         .step-active .step-circle {
-            background: #FF4B4B; border-color: #FF4B4B; color: white;
+            background: #FF4B4B;
+            border-color: #FF4B4B;
+            color: white;
             box-shadow: 0 0 10px rgba(255, 75, 75, 0.5);
         }
-        .step-active .step-label { color: #FF4B4B !important; font-weight: bold; }
+        .step-active .step-label {
+            color: #FF4B4B !important;
+            font-weight: bold;
+        }
 
-        /* --- 狀態列 --- */
+        /* --- 5. 狀態列 --- */
         .status-bar {
             background: #1A1C24;
             border: 1px solid #333;
             padding: 12px 20px;
             border-radius: 8px;
-            display: flex; justify-content: space-between; align-items: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 25px;
         }
         .status-text { font-size: 15px; font-weight: 500; }
 
-        /* --- 輸入框與按鈕 --- */
-        .stSelectbox > div > div, .stTextInput > div > div > input {
+        /* --- 6. 輸入框與按鈕優化 --- */
+        /* 針對 Streamlit 的輸入框容器 */
+        .stSelectbox > div > div, 
+        .stTextInput > div > div > input {
             background-color: #1F2229 !important;
             border: 1px solid #444 !important;
             color: white !important;
         }
+        
+        /* 下拉選單文字顏色 */
+        div[data-baseweb="select"] span {
+            color: white !important;
+        }
+        
+        /* 按鈕 */
         button[kind="primary"] {
             background-color: #FF4B4B !important;
             color: white !important;
             border: none;
+            font-weight: bold;
+            padding: 0.5rem 1rem;
+            font-size: 16px;
         }
 
-        /* 手機適配 */
+        /* 手機版適配 */
         @media (max-width: 600px) {
             .step-line-bg { display: none; }
             .user-info-box { display: none; }
@@ -129,14 +151,13 @@ def load_css():
 
 def render_stepper(current_step):
     steps = ["喚名", "安慰", "鼓勵", "詼諧", "完成"]
-    
-    # 組合 HTML (單行模式，避免 Markdown 解析錯誤)
-    items = ""
+    items_html = ""
     for i, name in enumerate(steps):
         is_active = "step-active" if i + 1 == current_step else ""
-        items += f'<div class="step-item {is_active}"><div class="step-circle">{i+1}</div><div class="step-label">{name}</div></div>'
+        items_html += f'<div class="step-item {is_active}"><div class="step-circle">{i+1}</div><div class="step-label">{name}</div></div>'
     
-    st.markdown(f'<div class="step-wrapper"><div class="step-line-bg"></div>{items}</div>', unsafe_allow_html=True)
+    final_html = f'<div class="step-wrapper"><div class="step-line-bg"></div>{items_html}</div>'
+    st.markdown(final_html, unsafe_allow_html=True)
 
 def render_status_bar(tier, energy, xp, engine_type, is_guest=False):
     tier_map = {"basic": "初級練習生", "intermediate": "中級守護者", "advanced": "高級刻錄師", "eternal": "永恆上鏈"}
