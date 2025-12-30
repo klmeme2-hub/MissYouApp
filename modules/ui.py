@@ -8,28 +8,26 @@ def load_css():
             color: #FAFAFA !important; 
         }
         
-        /* 電腦版寬度設定 */
+        /* 修正標題被切掉的問題：加大頂部間距 */
         .block-container {
-            padding-top: 1rem !important;
+            padding-top: 3rem !important; /* 加大到 3rem */
             padding-bottom: 3rem !important;
             max-width: 1000px !important;
         }
 
-        /* 移除所有預設分隔線 */
+        /* 移除分隔線 */
         hr { display: none !important; }
         
-        /* 縮小所有 Streamlit 元件的預設垂直間距 */
-        .stElementContainer {
-            margin-bottom: -15px !important;
-        }
-        div[data-testid="stButton"], div[data-testid="stSelectbox"] {
-            margin-bottom: 5px !important;
-        }
+        /* --- 2. 移除強制不換行 (關鍵修正) --- */
+        /* 
+           我移除了之前導致手機版按鈕被擠扁的 flex-wrap: nowrap 設定。
+           現在 Streamlit 會自動判斷：電腦版並排，手機版自動變成上下堆疊 (更適合手機操作)。
+        */
 
-        /* --- 2. 元件樣式 --- */
+        /* --- 3. 標題與副標題 --- */
         .header-title h1 {
             font-size: 32px !important;
-            margin-bottom: 0 !important;
+            margin-bottom: 5px !important;
             padding: 0 !important;
             text-shadow: 0 0 15px rgba(124, 77, 255, 0.6);
             line-height: 1.2;
@@ -37,12 +35,12 @@ def load_css():
         .header-subtitle {
             font-size: 16px !important;
             color: #CCC !important;
-            margin-top: 5px !important;
+            margin-top: 0px !important;
             margin-bottom: 20px !important;
             font-weight: 400;
         }
         
-        /* 右上角用戶資訊區 */
+        /* --- 4. 右上角用戶資訊區 (電腦版) --- */
         .user-info-container {
             display: flex;
             flex-direction: row;
@@ -58,27 +56,22 @@ def load_css():
             white-space: nowrap;
         }
 
-        /* 狀態列 */
-        .status-bar {
-            background: linear-gradient(90deg, #1E1E1E 0%, #252525 100%);
-            border: 1px solid #333;
-            padding: 10px 20px;
-            border-radius: 8px;
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 20px; font-size: 14px;
-        }
-        .status-item { margin-left: 15px; color: #BBB !important; }
-        .status-value { color: #FFD700 !important; font-weight: bold; }
-
-        /* Stepper (電腦版) */
+        /* --- 5. 圓形進度條 (Stepper) --- */
+        /* 電腦版樣式 */
         .step-wrapper { 
-            display: flex; justify-content: center; align-items: center;
-            gap: 0; margin: 15px 0; position: relative;
-            transform-origin: top center;
+            display: flex; 
+            justify-content: center;
+            align-items: center;
+            gap: 0; 
+            margin: 10px 0 20px 0;
+            position: relative;
         }
-        .step-item { text-align: center; position: relative; z-index: 2; padding: 0 25px; }
+        .step-item { 
+            text-align: center; position: relative; z-index: 2; padding: 0 25px;
+        }
         .step-circle {
-            width: 28px; height: 28px; border-radius: 50%; background: #1E1E1E; margin: 0 auto 5px;
+            width: 28px; height: 28px;
+            border-radius: 50%; background: #1E1E1E; margin: 0 auto 5px;
             display: flex; align-items: center; justify-content: center; 
             font-weight: bold; color: #666; font-size: 12px;
             border: 2px solid #444; transition: all 0.3s;
@@ -94,6 +87,43 @@ def load_css():
         .step-active .step-label { color: #FF4B4B; font-weight: bold; }
         .step-label { font-size: 12px; color: #888; }
 
+        /* --- 6. 狀態列 --- */
+        .status-bar {
+            background: linear-gradient(90deg, #1E1E1E 0%, #252525 100%);
+            border: 1px solid #333;
+            padding: 10px 20px;
+            border-radius: 8px;
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px; 
+            font-size: 14px;
+        }
+        .status-item { margin-left: 15px; color: #BBB !important; }
+        .status-value { color: #FFD700 !important; font-weight: bold; }
+
+        /* --- 其他元件 --- */
+        .question-card-active {
+            background-color: #1A1C24; padding: 20px; border-radius: 12px;
+            border: 2px solid #2196F3; text-align: center; margin-bottom: 20px;
+        }
+        .q-text { font-size: 20px; color: #FFFFFF !important; font-weight: bold; margin: 10px 0; }
+        
+        .history-card { 
+            background-color: #262730; padding: 12px; border: 1px solid #444; 
+            border-radius: 8px; margin-bottom: 8px; 
+        }
+        .script-box { 
+            background: #1E1E1E; padding: 15px; border-radius: 8px; margin: 10px 0; 
+            border-left: 4px solid #FFD700; color: #DDD !important;
+        }
+        .ai-bubble {
+            background-color: #262730; padding: 15px; border-radius: 10px;
+            border-left: 3px solid #FF4B4B; margin: 10px 0; color: #E0E0E0 !important;
+        }
+        .dashboard-card {
+            background-color: #1A1C24; padding: 15px; border-radius: 10px;
+            border: 1px solid #333; text-align: center; margin-bottom: 10px;
+        }
+
         /* 輸入框與按鈕 */
         input, textarea, .stSelectbox > div > div {
             background-color: #1F2229 !important; color: #FAFAFA !important; border: 1px solid #444 !important;
@@ -104,46 +134,32 @@ def load_css():
         #MainMenu, footer {visibility: hidden;}
 
         /* =============================================
-           3. 手機版專用修正 (Mobile RWD)
+           7. 手機版專用修正 (Mobile RWD)
            ============================================= */
         @media only screen and (max-width: 600px) {
-            .header-title h1 { font-size: 24px !important; }
-            .header-subtitle { font-size: 12px !important; margin-bottom: 5px !important; }
             
-            /* 隱藏 Email */
+            /* (1) 隱藏 Email，右上角只留登出按鈕 */
             .user-email-text { display: none !important; }
             .user-info-container { padding-top: 0 !important; }
             
-            /* 強制並排 */
-            [data-testid="stHorizontalBlock"] {
-                flex-wrap: nowrap !important;
-                gap: 5px !important;
-            }
-            [data-testid="column"] {
-                min-width: 0 !important;
-                width: auto !important;
-            }
-            
-            /* Tab 縮小 */
-            button[data-baseweb="tab"] div {
-                font-size: 14px !important;
-                padding: 5px 8px !important;
-            }
-            
-            /* Stepper 縮小 */
+            /* (2) 手機版標題再縮小一點，避免換行 */
+            .header-title h1 { font-size: 26px !important; }
+
+            /* (3) Stepper 縮放與隱藏線條 */
             .step-wrapper {
-                transform: scale(0.75);
-                margin: -10px 0 0px 0 !important;
-                width: 120%; margin-left: -10%;
+                transform: scale(0.85); /* 縮小 */
+                margin: 0;
+                width: 110%; margin-left: -5%; /* 修正置中 */
             }
             .step-line-bg { display: none !important; }
-            .step-item { padding: 0 5px !important; }
-            
-            /* 狀態列垂直 */
+            .step-item { padding: 0 2px !important; }
+            .step-circle { width: 24px; height: 24px; font-size: 10px; margin-bottom: 2px; }
+            .step-label { font-size: 9px; }
+
+            /* (4) 狀態列垂直排列 (避免擠在一起) */
             .status-bar {
                 flex-direction: column;
                 align-items: flex-start;
-                padding: 10px;
                 gap: 5px;
             }
             .status-item { margin-left: 0 !important; margin-right: 10px; font-size: 12px; }
@@ -162,7 +178,9 @@ def render_stepper(current_step):
 def render_status_bar(tier, energy, xp, engine_type, is_guest=False):
     tier_map = {"basic": "初級練習生", "intermediate": "中級守護者", "advanced": "高級刻錄師", "eternal": "永恆上鏈"}
     tier_name = tier_map.get(tier, tier)
-    engine_name = "Gemini Pro" if engine_type == "elevenlabs" else "Gemini Flash"
+    
+    if engine_type == "elevenlabs": engine_info = "🚀 Gemini Pro"
+    else: engine_info = "⚡ Gemini Flash"
     
     if tier == "basic": icon = "🚀"
     elif tier == "intermediate": icon = "🛡️"
@@ -178,7 +196,7 @@ def render_status_bar(tier, energy, xp, engine_type, is_guest=False):
         <div>
             <span class="status-item">❤️ 電量: <span class="status-value" style="color:#FF4081!important;">{energy}</span></span>
             {xp_html}
-            <span class="status-item">| {engine_name}</span>
+            <span class="status-item">| {engine_info}</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
