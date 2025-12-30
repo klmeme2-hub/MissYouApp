@@ -8,20 +8,20 @@ def load_css():
             color: #FAFAFA !important; 
         }
         
-        /* 調整主區塊寬度 */
+        /* 電腦版寬度 */
         .block-container {
             padding-top: 1rem !important;
-            padding-bottom: 2rem !important;
+            padding-bottom: 3rem !important;
             max-width: 1000px !important;
         }
-        
+
         hr { display: none !important; }
         .stElementContainer { margin-bottom: -15px !important; }
         div[data-testid="stButton"], div[data-testid="stSelectbox"] {
             margin-bottom: 5px !important;
         }
 
-        /* --- 2. 頂部標題區 --- */
+        /* --- 2. 標題與副標題 --- */
         .header-title h1 {
             font-size: 36px !important;
             margin-bottom: 5px !important;
@@ -37,22 +37,7 @@ def load_css():
             font-weight: 400;
         }
         
-        /* 右上角用戶資訊區 (僅電腦版顯示) */
-        .user-info-box {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            justify-content: center;
-            height: 100%;
-            margin-top: 10px;
-        }
-        .user-email {
-            font-size: 14px !important;
-            color: #888 !important;
-            margin-bottom: 5px;
-        }
-
-        /* --- 3. 圓形進度條 (Stepper) --- */
+        /* --- 3. Stepper (圓形進度條) 電腦版 --- */
         .step-wrapper { 
             display: flex; 
             justify-content: center; /* 電腦版置中 */
@@ -93,16 +78,18 @@ def load_css():
         }
         .status-text { font-size: 15px; font-weight: 500; }
 
-        /* --- 5. 其他元件 --- */
+        /* --- 5. 輸入框與按鈕 --- */
         .stSelectbox > div > div, .stTextInput > div > div > input {
             background-color: #1F2229 !important;
             border: 1px solid #444 !important;
             color: white !important;
         }
+        
         button[kind="primary"] {
             background-color: #FF4B4B !important; color: white !important; border: none;
         }
         
+        /* 卡片樣式 */
         .question-card-active { background-color: #1A1C24; padding: 20px; border-radius: 12px; border: 2px solid #2196F3; text-align: center; margin-bottom: 20px; }
         .q-text { font-size: 20px; color: #FFFFFF !important; font-weight: bold; margin: 10px 0; }
         .history-card { background-color: #262730; padding: 12px; border: 1px solid #444; border-radius: 8px; margin-bottom: 8px; }
@@ -111,7 +98,7 @@ def load_css():
         #MainMenu, footer {visibility: hidden;}
 
         /* =============================================
-           6. 手機版專用修正 (Mobile RWD)
+           6. 手機版專用修正 (Max Width 600px)
            ============================================= */
         @media only screen and (max-width: 600px) {
             
@@ -120,29 +107,39 @@ def load_css():
             
             /* (2) 狀態列調整 */
             .status-bar { 
-                flex-direction: column; 
-                align-items: flex-start; 
-                gap: 8px; 
-                padding: 15px;
+                flex-direction: column; align-items: flex-start; gap: 8px; padding: 15px;
             }
-            /* 加大狀態列文字 */
             .status-text { font-size: 16px !important; } 
 
-            /* (3) Stepper 靠左 + 縮放調整 */
+            /* (3) Stepper 修正：靠左 + 加大 */
             .step-wrapper {
-                justify-content: flex-start !important; /* 靠左 */
-                transform: scale(0.9); /* 稍微縮小 */
-                transform-origin: left center; /* 從左邊開始縮放 */
+                justify-content: flex-start !important; /* 強制靠左 */
                 margin: 20px 0 20px 0 !important;
-                width: 110%; /* 寬度稍微拉大避免被切 */
+                width: 100%;
+                overflow-x: auto; /* 若太寬可滑動 */
             }
-            .step-line-bg { display: none !important; }
-            .step-item { padding: 0 10px !important; } /* 縮小圓圈間距 */
+            .step-line-bg { display: none !important; } /* 隱藏橫線 */
             
+            .step-item { 
+                padding: 0 8px !important; /* 縮小左右間距，讓它靠左緊湊 */
+                min-width: 60px; /* 確保有點寬度 */
+            }
+            .step-circle {
+                width: 35px; height: 35px; /* 加大圓圈 */
+                font-size: 14px; margin-bottom: 5px;
+            }
+            .step-label { font-size: 12px; }
+
             /* (4) Tab 標籤字體加大 */
             button[data-baseweb="tab"] div {
-                font-size: 16px !important; 
+                font-size: 18px !important; /* 加大 */
                 padding: 10px 5px !important;
+            }
+            
+            /* (5) 生成邀請卡按鈕 加大 */
+            button[kind="primary"] p {
+                font-size: 20px !important;
+                padding: 5px 0;
             }
         }
     </style>
