@@ -8,8 +8,6 @@ def render(supabase, cookie_manager):
     saved_token = cookies.get("guest_token", "")
     
     col1, col2 = st.columns([1, 1], gap="large")
-    
-    # 左側：親友入口
     with col1:
         st.markdown("## 👋 我是親友")
         token_input = st.text_input("通行碼", value=saved_token, placeholder="A8K29")
@@ -20,12 +18,9 @@ def render(supabase, cookie_manager):
                 st.session_state.guest_data = {'owner_id': d['user_id'], 'role': d['role']}
                 st.rerun()
             else: st.error("無效")
-
-    # 右側：會員入口
     with col2:
         st.markdown("## 👤 我是會員")
         tab_l, tab_s = st.tabs(["登入", "註冊"])
-        
         with tab_l:
             with st.form("login"):
                 le = st.text_input("Email", value=saved_email)
@@ -37,7 +32,6 @@ def render(supabase, cookie_manager):
                         st.session_state.user = r
                         st.rerun()
                     else: st.error("失敗")
-        
         with tab_s:
             se = st.text_input("Email", key="se")
             sp = st.text_input("密碼", type="password", key="sp")
