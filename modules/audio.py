@@ -9,14 +9,14 @@ from .config import ROLE_MAPPING
 def get_tts_engine_type(profile):
     """
     決定語音引擎
-    修改：無論等級，全部統一使用 ElevenLabs (擬真版)
+    【修改】：為了體驗感，全體會員(含初級)皆使用擬真版
     """
     return "elevenlabs"
 
 def generate_speech(text, tier):
     """
     生成語音
-    修改：優先使用 ElevenLabs，OpenAI 僅作為備用
+    【修改】：優先使用 ElevenLabs，OpenAI 僅作備用
     """
     # 1. 優先嘗試 ElevenLabs (擬真)
     try:
@@ -28,7 +28,7 @@ def generate_speech(text, tier):
         data = {
             "text": text, 
             "model_id": "eleven_multilingual_v2", 
-            "voice_settings": {"stability": 0.4, "similarity_boost": 0.7}
+            "voice_settings": {"stability": 0.4, "similarity_boost": 0.75}
         }
         res = requests.post(url, json=data, headers=headers)
         
@@ -39,7 +39,7 @@ def generate_speech(text, tier):
     except Exception as e:
         print(f"ElevenLabs Connection Error: {e}")
     
-    # 2. 備用方案：OpenAI TTS (如果 ElevenLabs 額度沒了或報錯，自動降級)
+    # 2. 備用方案：OpenAI TTS (如果 ElevenLabs 掛了或沒錢了)
     try:
         client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         response = client.audio.speech.create(
