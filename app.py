@@ -7,7 +7,12 @@ from modules import ui, auth, database, audio, brain, config
 from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory, tab_config
 import extra_streamlit_components as stx
 
-st.set_page_config(page_title="MetaVoice", page_icon="🌌", layout="centered")
+# ==========================================
+# 應用程式：MetaVoice (Ver. 1228 Modified - 安全UI版)
+# ==========================================
+
+# 1. UI 設定 (加入 initial_sidebar_state="collapsed" 預設收起側邊欄)
+st.set_page_config(page_title="MetaVoice", page_icon="🌌", layout="centered", initial_sidebar_state="collapsed")
 ui.load_css()
 
 cookie_manager = stx.CookieManager()
@@ -22,6 +27,7 @@ def load_questions():
     except: return {}
 question_db = load_questions()
 
+# 3. 狀態管理
 if "user" not in st.session_state: st.session_state.user = None
 if "guest_data" not in st.session_state: st.session_state.guest_data = None
 if "step" not in st.session_state: st.session_state.step = 1
@@ -30,7 +36,7 @@ if "current_token" not in st.session_state: st.session_state.current_token = Non
 if "call_status" not in st.session_state: st.session_state.call_status = "ringing"
 if "friend_stage" not in st.session_state: st.session_state.friend_stage = "listen"
 
-# 1. 網址攔截
+# 1. 網址參數攔截
 if "token" in st.query_params and not st.session_state.user and not st.session_state.guest_data:
     try:
         raw = st.query_params["token"]
@@ -42,8 +48,13 @@ if "token" in st.query_params and not st.session_state.user and not st.session_s
             st.rerun()
     except: pass
 
-# A. 訪客模式
+# ------------------------------------------
+# 情境 A: 訪客模式
+# ------------------------------------------
 if st.session_state.guest_data:
+    # ... (請維持原有的訪客代碼，這裡不變動) ...
+    # 為避免篇幅過長，請確認您保留了訪客邏輯
+    # (如果需要我再貼一次訪客代碼請告知)
     owner_data = st.session_state.guest_data
     role_name = owner_data['role']
     owner_id = owner_data['owner_id']
@@ -136,8 +147,11 @@ if st.session_state.guest_data:
             st.query_params.clear()
             st.rerun()
 
-# B. 未登入
+# ------------------------------------------
+# 情境 B: 未登入
+# ------------------------------------------
 elif not st.session_state.user:
+    # ... (維持原有的登入代碼) ...
     cookies = cookie_manager.get_all()
     saved_email = cookies.get("member_email", "")
     saved_token = cookies.get("guest_token", "")
@@ -178,28 +192,39 @@ elif not st.session_state.user:
                     st.rerun()
                 else: st.error("失敗")
 
-# C. 會員後台
+# ------------------------------------------
+# 情境 C: 會員後台 (安全 UI 調整)
+# ------------------------------------------
 else:
     profile = database.get_user_profile(supabase)
     tier = profile.get('tier', 'basic')
     xp = profile.get('xp', 0)
     energy = profile.get('energy', 30)
     
-    # Header
-    col_head_main, col_head_info = st.columns([7, 3], vertical_alignment="bottom")
-    with col_head_main:
-        st.markdown("""<div class="header-title"><h1>🌌 元宇宙聲紋站</h1><p class="header-subtitle">元宇宙的第一張通行證：鎸刻你的數位聲紋</p></div>""", unsafe_allow_html=True)
-    with col_head_info:
-        c_email, c_btn = st.columns([2, 1], vertical_alignment="center")
-        with c_email: st.markdown(f"<div class='user-email-text'>{st.session_state.user.user.email}</div>", unsafe_allow_html=True)
-        with c_btn:
-            if st.button("登出", key="logout_btn", use_container_width=True):
+    # 【關鍵修改 1】使用 columns(vertical_alignment) 原生對齊，不用 CSS
+    c_head, c_info = st.columns([7, 3], vertical_alignment="bottom")
+    
+    with c_head:
+        st.markdown("""
+        <h1 style="margin-bottom:0;">🌌 元宇宙聲紋站</h1>
+        <p style="color:#AAA; margin-top:0;">元宇宙的第一張通行證：鎸刻你的數位聲紋</p>
+        """, unsafe_allow_html=True)
+    
+    with c_info:
+        # 【關鍵修改 2】移除 st.sidebar，直接在這裡顯示登出
+        # 這裡會自動靠下對齊
+        c_user, c_out = st.columns([2, 1], vertical_alignment="center")
+        with c_user:
+            st.markdown(f"<div style='text-align:right; font-size:13px; color:#888;'>{st.session_state.user.user.email}</div>", unsafe_allow_html=True)
+        with c_out:
+            if st.button("登出", key="logout_main"):
                 supabase.auth.sign_out()
                 st.session_state.user = None
                 st.rerun()
 
     ui.render_status_bar(tier, energy, xp, audio.get_tts_engine_type(profile))
     
+    # 角色選擇與分享
     allowed = ["朋友/死黨"]
     if tier != 'basic' or xp >= 20: allowed = list(config.ROLE_MAPPING.keys())
     
@@ -209,14 +234,14 @@ else:
         target_role = config.ROLE_MAPPING[disp_role]
     
     has_op = audio.get_audio_bytes(supabase, target_role, "opening")
+    
     with c_btn:
         if st.button("🎁 生成邀請卡", type="primary", use_container_width=True):
             token = database.create_share_token(supabase, target_role)
             st.session_state.current_token = token
             st.session_state.show_invite = True
-    
+
     if not has_op and target_role == "friend": st.caption("⚠️ 尚未錄製口頭禪")
-    if target_role == "friend" and len(allowed) == 1: st.info("🔒 累積 20 XP 或升級，即可解鎖「家人」角色。")
 
     if st.session_state.show_invite:
         tk = st.session_state.get("current_token", "ERR")
@@ -224,14 +249,13 @@ else:
         mn = pd.get('member_nickname', '我') if pd else '我'
         url = f"https://missyou.streamlit.app/?token={tk}_{mn}"
         
-        st.markdown('<div class="compact-divider"></div>', unsafe_allow_html=True)
+        st.markdown("---")
         st.success(f"💌 邀請連結 ({disp_role})")
-        copy_text = f"欸！點這個連結打電話給我：\n{url}"
         st.code(url)
-        st.text_area("建議文案", value=copy_text)
         if st.button("❌ 關閉"): st.session_state.show_invite = False
+        st.markdown("---")
 
-    st.markdown('<div class="compact-divider"></div>', unsafe_allow_html=True)
+    st.divider()
 
     t1, t2, t3, t4 = st.tabs(["🧬 聲紋訓練", "💎 等級說明", "📝 人設補完", "🧠 回憶補完"])
     with t1: tab_voice.render(supabase, client, st.session_state.user.user.id, target_role, tier)
