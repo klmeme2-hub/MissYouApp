@@ -8,7 +8,7 @@ from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory, tab_conf
 import extra_streamlit_components as stx
 
 # ==========================================
-# 應用程式：MetaVoice (SaaS Beta 4.10 - 手機版優化)
+# 應用程式：MetaVoice (SaaS Beta 4.11 - 手機版微調)
 # ==========================================
 
 st.set_page_config(page_title="MetaVoice", page_icon="🌌", layout="centered")
@@ -51,7 +51,7 @@ if "token" in st.query_params and not st.session_state.user and not st.session_s
 # 情境 A: 訪客模式
 # ------------------------------------------
 if st.session_state.guest_data:
-    # ... (訪客模式維持原樣) ...
+    # (維持原樣)
     owner_data = st.session_state.guest_data
     role_name = owner_data['role']
     owner_id = owner_data['owner_id']
@@ -148,7 +148,7 @@ if st.session_state.guest_data:
 # 情境 B: 未登入
 # ------------------------------------------
 elif not st.session_state.user:
-    # (登入頁面維持原樣)
+    # (維持原樣)
     cookies = cookie_manager.get_all()
     saved_email = cookies.get("member_email", "")
     saved_token = cookies.get("guest_token", "")
@@ -190,7 +190,7 @@ elif not st.session_state.user:
                 else: st.error("失敗")
 
 # ------------------------------------------
-# 情境 C: 會員後台 (登出按鈕移至底部)
+# 情境 C: 會員後台
 # ------------------------------------------
 else:
     profile = database.get_user_profile(supabase)
@@ -198,16 +198,21 @@ else:
     xp = profile.get('xp', 0)
     energy = profile.get('energy', 30)
     
-    # 1. 頂部 Header (移除 Email 與 登出)
-    st.markdown("""
-    <div class="header-title">元宇宙聲紋站</div>
-    <div class="header-subtitle">元宇宙的第一張通行證：鎸刻你的數位聲紋</div>
-    """, unsafe_allow_html=True)
-    
-    # 2. 狀態列
+    # 1. Header (補回圖示 🌌)
+    col_head_main, col_head_info = st.columns([7, 3], vertical_alignment="bottom")
+    with col_head_main:
+        st.markdown("""
+        <div class="header-title">🌌 元宇宙聲紋站</div>
+        <div class="header-subtitle">元宇宙的第一張通行證：鎸刻你的數位聲紋</div>
+        """, unsafe_allow_html=True)
+    with col_head_info:
+        # 手機版會自動隱藏這裡
+        st.markdown(f"<div class='user-info-box'><div class='user-email'>{st.session_state.user.user.email}</div></div>", unsafe_allow_html=True)
+
+    # 2. Status Bar
     ui.render_status_bar(tier, energy, xp, audio.get_tts_engine_type(profile))
     
-    # 3. 角色與分享
+    # 3. Control
     allowed = ["朋友/死黨"]
     if tier != 'basic' or xp >= 20: allowed = list(config.ROLE_MAPPING.keys())
     
@@ -215,17 +220,14 @@ else:
     with c_role:
         disp_role = st.selectbox("選擇對象", allowed, label_visibility="collapsed")
         target_role = config.ROLE_MAPPING[disp_role]
-    
-    has_op = audio.get_audio_bytes(supabase, target_role, "opening")
-    
     with c_btn:
+        has_op = audio.get_audio_bytes(supabase, target_role, "opening")
         if st.button("🎁 生成邀請卡", type="primary", use_container_width=True):
             token = database.create_share_token(supabase, target_role)
             st.session_state.current_token = token
             st.session_state.show_invite = True
 
     if not has_op and target_role == "friend": st.caption("⚠️ 尚未錄製口頭禪")
-    if target_role == "friend" and len(allowed) == 1: st.info("🔒 累積 20 XP 或升級，即可解鎖「家人」角色。")
 
     if st.session_state.show_invite:
         tk = st.session_state.get("current_token", "ERR")
@@ -248,13 +250,12 @@ else:
     with t3: tab_persona.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp)
     with t4: tab_memory.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp, question_db)
 
-    # 4. 底部登出區 (移到這裡)
+    # 4. 底部登出 (手機/電腦通用)
     st.divider()
-    c_info, c_logout = st.columns([8, 2], vertical_alignment="center")
-    with c_info:
-        st.caption(f"目前登入：{st.session_state.user.user.email}")
-    with c_logout:
-        if st.button("登出", key="logout_footer", use_container_width=True):
+    c_i, c_o = st.columns([8, 2], vertical_alignment="center")
+    with c_i: st.caption(f"登入身分：{st.session_state.user.user.email}")
+    with c_o:
+        if st.button("登出", key="footer_logout", use_container_width=True):
             supabase.auth.sign_out()
             st.session_state.user = None
             st.rerun()
