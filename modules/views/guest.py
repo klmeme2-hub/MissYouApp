@@ -25,12 +25,9 @@ def render(supabase, client):
 
     # 階段 2: 通話中
     elif st.session_state.call_status == "connected":
-        # 開場白邏輯
         if "opening_played" not in st.session_state:
             op_bytes = audio.get_audio_bytes(supabase, role_name, "opening")
-            # 如果是家人且沒開場白，嘗試找暱稱
-            if not op_bytes and role_name != "friend": 
-                op_bytes = audio.get_audio_bytes(supabase, role_name, "nickname")
+            if not op_bytes and role_name != "friend": op_bytes = audio.get_audio_bytes(supabase, role_name, "nickname")
             
             if role_name == "friend":
                 ai_ask = "你覺得這個AI分身，跟我本尊有幾分像呢？幫我打個分數，拜託了。"
@@ -46,7 +43,6 @@ def render(supabase, client):
         ui.render_status_bar(tier, energy, 0, audio.get_tts_engine_type(profile), is_guest=True)
         st.markdown(f"<h4 style='text-align:center;'>與 {display_name} 通話中...</h4>", unsafe_allow_html=True)
         
-        # 模式開關
         if role_name == "friend":
             parrot_mode = st.toggle("🦜 九官鳥模式")
             cost = 0
@@ -76,7 +72,6 @@ def render(supabase, client):
                             
                             forced_tier = 'advanced' if (role_name!="friend" and use_high) else 'basic'
                             wav = audio.generate_speech(ai_text, forced_tier)
-                            
                             final = wav
                             if not parrot_mode and has_nick and wav:
                                 nb = audio.get_audio_bytes(supabase, role_name, "nickname")
