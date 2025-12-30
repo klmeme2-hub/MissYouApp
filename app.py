@@ -1,7 +1,7 @@
 import streamlit as st
 import json
 from openai import OpenAI
-from modules import ui, database, state
+from modules import ui, database
 from modules.views import auth as view_auth
 from modules.views import member as view_member
 from modules.views import guest as view_guest
@@ -17,10 +17,23 @@ if "SUPABASE_URL" not in st.secrets: st.stop()
 supabase = database.init_supabase()
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# 3. 狀態初始化 (呼叫模組)
-state.init_session_state()
+@st.cache_data
+def load_questions():
+    try:
+        with open('questions.json', 'r', encoding='utf-8') as f: return json.load(f)
+    except: return {}
+question_db = load_questions()
 
-# 4. 網址攔截邏輯
+# 3. 狀態初始化
+if "user" not in st.session_state: st.session_state.user = None
+if "guest_data" not in st.session_state: st.session_state.guest_data = None
+if "step" not in st.session_state: st.session_state.step = 1
+if "show_invite" not in st.session_state: st.session_state.show_invite = False
+if "current_token" not in st.session_state: st.session_state.current_token = None
+if "call_status" not in st.session_state: st.session_state.call_status = "ringing"
+if "friend_stage" not in st.session_state: st.session_state.friend_stage = "listen"
+
+# 4. 網址參數攔截
 if "token" in st.query_params and not st.session_state.user and not st.session_state.guest_data:
     try:
         raw = st.query_params["token"]
@@ -37,13 +50,13 @@ if "token" in st.query_params and not st.session_state.user and not st.session_s
 # ==========================================
 
 if st.session_state.guest_data:
-    # 進入訪客畫面
+    # A. 訪客模式
     view_guest.render(supabase, client)
 
 elif not st.session_state.user:
-    # 進入登入畫面
+    # B. 登入畫面
     view_auth.render(supabase, cookie_manager)
 
 else:
-    # 進入會員後台
-    view_member.render(supabase, client)
+    # C. 會員後台
+    view_member.render(supabase, client, question_db)
