@@ -5,3 +5,8 @@ backgroundColor="#0E1117"
 secondaryBackgroundColor="#262730"
 textColor="#FAFAFA"
 font="sans serif"
+
+# --- 新增這段 ---
+[client]
+toolbarMode = "viewer"  # 隱藏右上角工具列，只保留最簡模式
+showSidebarNavigation = false # 隱藏側邊欄導航
