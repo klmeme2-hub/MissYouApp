@@ -3,60 +3,103 @@ import datetime
 from modules import auth, database
 
 def render(supabase, cookie_manager):
-    # ... (前面的代碼保持不變，直到 tab_s 結束) ...
-    # 請保留前面的 col1, col2 和 tab 邏輯
-    # 這裡只列出要加在最下面的部分：
-
+    # 讀取 Cookie (為了自動填入 Email)
     cookies = cookie_manager.get_all()
     saved_email = cookies.get("member_email", "")
-    saved_token = cookies.get("guest_token", "")
     
-    col1, col2 = st.columns([1, 1], gap="large")
+    # 使用 6:4 分割，左邊品牌文案，右邊登入框
+    col1, col2 = st.columns([6, 4], gap="large")
     
+    # --- 左側：品牌形象區 (Brand) ---
     with col1:
-        st.markdown("## 👋 我是親友")
-        token_input = st.text_input("通行碼", value=saved_token, placeholder="A8K29")
-        if st.button("🚀 開始對話", type="primary"):
-            d = database.validate_token(supabase, token_input.strip())
-            if d:
-                cookie_manager.set("guest_token", token_input.strip(), expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
-                st.session_state.guest_data = {'owner_id': d['user_id'], 'role': d['role']}
-                st.rerun()
-            else: st.error("無效")
-
-    with col2:
-        st.markdown("## 👤 我是會員")
-        tab_l, tab_s = st.tabs(["登入", "註冊"])
-        
-        with tab_l:
-            with st.form("login"):
-                le = st.text_input("Email", value=saved_email)
-                lp = st.text_input("密碼", type="password")
-                if st.form_submit_button("登入"):
-                    r = auth.login_user(supabase, le, lp)
-                    if r and r.user:
-                        cookie_manager.set("member_email", le, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
-                        st.session_state.user = r
-                        st.rerun()
-                    else: st.error("失敗")
-        
-        with tab_s:
-            se = st.text_input("Email", key="se")
-            sp = st.text_input("密碼", type="password", key="sp")
-            if st.button("註冊"):
-                r = auth.signup_user(supabase, se, sp)
-                if r and r.user:
-                    database.get_user_profile(supabase, r.user.id)
-                    st.session_state.user = r
-                    st.success("成功")
-                    st.rerun()
-                else: st.error("失敗")
+        st.markdown("""
+        <div style="padding-top: 20px; padding-right: 20px;">
+            <h1 style="
+                font-size: 56px !important; 
+                font-weight: 800; 
+                background: linear-gradient(135deg, #FFFFFF 0%, #A78BFA 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                margin-bottom: 15px;
+                line-height: 1.2;">
+                元宇宙・聲紋 ID
+            </h1>
+            <h3 style="
+                color: #94A3B8 !important; 
+                font-size: 24px !important;
+                font-weight: 400; 
+                margin-top: 0;
+                margin-bottom: 40px;
+                letter-spacing: 1px;">
+                複製一個你，活在元宇宙
+            </h3>
             
-            # 【新增：法律條款連結】
+            <div style="
+                background: rgba(255, 255, 255, 0.03); 
+                border-left: 5px solid #FF4B4B; 
+                padding: 25px; 
+                border-radius: 0 16px 16px 0;
+                margin-bottom: 40px;
+                backdrop-filter: blur(10px);">
+                <p style="font-size: 22px; font-weight: bold; color: #FFF !important; margin: 0; line-height: 1.5;">
+                「現在錄音，3 分鐘生成你的 AI 數位分身。」
+                </p>
+            </div>
+            
+            <div style="font-size: 18px; line-height: 1.8; color: #CCC; font-weight: 300;">
+                <p style="margin-bottom: 10px;">這是你在元宇宙的入門儀式。</p>
+                <p style="margin-bottom: 10px;">透過聲紋鎸刻技術，創造一個能說、能思考、擁有你回憶的 AI。</p>
+                <p style="margin-top: 20px; color: #818CF8; font-weight: 500;">先拿朋友試試看？還是留給最愛的家人？由你決定。</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # --- 右側：會員登入區 (Login) ---
+    with col2:
+        st.markdown("<br><br>", unsafe_allow_html=True) # 調整垂直位置
+        
+        # 使用容器增加邊框質感
+        with st.container(border=True):
+            st.subheader("👤 會員登入")
+            
+            tab_l, tab_s = st.tabs(["登入", "註冊"])
+            
+            with tab_l:
+                with st.form("login_form"):
+                    le = st.text_input("Email", value=saved_email)
+                    lp = st.text_input("密碼", type="password")
+                    
+                    if st.form_submit_button("登入", use_container_width=True, type="primary"):
+                        res = auth.login_user(supabase, le, lp)
+                        if res and res.user:
+                            # 登入成功寫入 Cookie
+                            cookie_manager.set("member_email", le, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
+                            st.session_state.user = res
+                            st.rerun()
+                        else:
+                            st.error("登入失敗，請檢查帳號密碼")
+            
+            with tab_s:
+                st.caption("✨ 註冊即送 **免費體驗點數**")
+                se = st.text_input("Email", key="s_e")
+                sp = st.text_input("設定密碼", type="password", key="s_p")
+                
+                if st.button("註冊", use_container_width=True):
+                    res = auth.signup_user(supabase, se, sp)
+                    if res and res.user:
+                        # 這裡假設 database 模組有 get_user_profile 來初始化資料
+                        # 若無，可暫時略過初始化，登入後會自動建立
+                        st.session_state.user = res
+                        st.success("註冊成功！")
+                        st.rerun()
+                    else:
+                        st.error("註冊失敗，Email 可能已被使用")
+
+            # 法律條款連結
             st.markdown("""
-            <div style="margin-top: 10px; font-size: 12px; color: #888; text-align: center;">
+            <div style="margin-top: 20px; font-size: 13px; color: #666; text-align: center; border-top: 1px solid #333; padding-top: 10px;">
                 點擊註冊即代表您同意 
-                <a href="/服務條款" target="_self" style="color: #BBB;">服務條款</a> 與 
-                <a href="/隱私權政策" target="_self" style="color: #BBB;">隱私權政策</a>
+                <a href="/服務條款" target="_self" style="color: #888; text-decoration: none;">服務條款</a> 與 
+                <a href="/隱私權政策" target="_self" style="color: #888; text-decoration: none;">隱私權政策</a>
             </div>
             """, unsafe_allow_html=True)
