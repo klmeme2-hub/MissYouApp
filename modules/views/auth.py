@@ -3,24 +3,26 @@ import datetime
 from modules import auth, database
 
 def render(supabase, cookie_manager):
-    # 讀取 Cookie (為了自動填入 Email)
+    # 讀取 Cookie
     cookies = cookie_manager.get_all()
     saved_email = cookies.get("member_email", "")
     
-    # 使用 6:4 分割，左邊品牌文案，右邊登入框
+    # 左右分欄
     col1, col2 = st.columns([6, 4], gap="large")
     
     # --- 左側：品牌形象區 (Brand) ---
     with col1:
-        st.markdown("""
-        <div style="padding-top: 20px; padding-right: 20px;">
+        # 使用變數儲存 HTML，避免縮排導致的 Markdown 解析錯誤
+        # 這裡的 HTML 經過微調，確保在深色背景下好看
+        html_content = """
+        <div style="padding-top: 20px;">
             <h1 style="
                 font-size: 56px !important; 
                 font-weight: 800; 
                 background: linear-gradient(135deg, #FFFFFF 0%, #A78BFA 100%);
                 -webkit-background-clip: text;
                 -webkit-text-fill-color: transparent;
-                margin-bottom: 15px;
+                margin-bottom: 0px;
                 line-height: 1.2;">
                 元宇宙・聲紋 ID
             </h1>
@@ -35,7 +37,7 @@ def render(supabase, cookie_manager):
             </h3>
             
             <div style="
-                background: rgba(255, 255, 255, 0.03); 
+                background: rgba(255, 255, 255, 0.05); 
                 border-left: 5px solid #FF4B4B; 
                 padding: 25px; 
                 border-radius: 0 16px 16px 0;
@@ -52,14 +54,15 @@ def render(supabase, cookie_manager):
                 <p style="margin-top: 20px; color: #818CF8; font-weight: 500;">先拿朋友試試看？還是留給最愛的家人？由你決定。</p>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """
+        st.markdown(html_content, unsafe_allow_html=True)
 
     # --- 右側：會員登入區 (Login) ---
     with col2:
-        st.markdown("<br><br>", unsafe_allow_html=True) # 調整垂直位置
+        st.markdown("<br><br>", unsafe_allow_html=True) # 調整垂直位置，讓它置中一點
         
-        # 使用容器增加邊框質感
-        with st.container(border=True):
+        # 【修改點】移除 border=True，讓它與背景融合
+        with st.container():
             st.subheader("👤 會員登入")
             
             tab_l, tab_s = st.tabs(["登入", "註冊"])
@@ -87,8 +90,6 @@ def render(supabase, cookie_manager):
                 if st.button("註冊", use_container_width=True):
                     res = auth.signup_user(supabase, se, sp)
                     if res and res.user:
-                        # 這裡假設 database 模組有 get_user_profile 來初始化資料
-                        # 若無，可暫時略過初始化，登入後會自動建立
                         st.session_state.user = res
                         st.success("註冊成功！")
                         st.rerun()
@@ -97,7 +98,7 @@ def render(supabase, cookie_manager):
 
             # 法律條款連結
             st.markdown("""
-            <div style="margin-top: 20px; font-size: 13px; color: #666; text-align: center; border-top: 1px solid #333; padding-top: 10px;">
+            <div style="margin-top: 20px; font-size: 12px; color: #666; text-align: center; border-top: 1px solid #333; padding-top: 10px;">
                 點擊註冊即代表您同意 
                 <a href="/服務條款" target="_self" style="color: #888; text-decoration: none;">服務條款</a> 與 
                 <a href="/隱私權政策" target="_self" style="color: #888; text-decoration: none;">隱私權政策</a>
