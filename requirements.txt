@@ -6,3 +6,5 @@ numpy
 pydub
 google-generativeai
 extra-streamlit-components
+pandas
+plotly
