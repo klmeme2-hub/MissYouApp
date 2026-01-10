@@ -2,13 +2,18 @@ import streamlit as st
 import json
 from openai import OpenAI
 from modules import ui, database
+# 引入 View 模組
 from modules.views import auth as view_auth
 from modules.views import member as view_member
 from modules.views import guest as view_guest
 import extra_streamlit_components as stx
 
+# ==========================================
+# 應用程式：EchoSoul (SaaS Stable - Routing Architecture)
+# ==========================================
+
 # 1. UI 設定
-st.set_page_config(page_title="MetaVoice", page_icon="🌌", layout="centered")
+st.set_page_config(page_title="EchoSoul", page_icon="♾️", layout="centered")
 ui.load_css()
 
 # 2. 系統初始化
@@ -33,7 +38,7 @@ if "current_token" not in st.session_state: st.session_state.current_token = Non
 if "call_status" not in st.session_state: st.session_state.call_status = "ringing"
 if "friend_stage" not in st.session_state: st.session_state.friend_stage = "listen"
 
-# 4. 網址參數攔截
+# 4. 網址參數攔截 (直連邏輯)
 if "token" in st.query_params and not st.session_state.user and not st.session_state.guest_data:
     try:
         raw = st.query_params["token"]
@@ -54,9 +59,9 @@ if st.session_state.guest_data:
     view_guest.render(supabase, client)
 
 elif not st.session_state.user:
-    # B. 登入畫面
+    # B. 登入畫面 (EchoSoul 品牌首頁)
     view_auth.render(supabase, cookie_manager)
 
 else:
-    # C. 會員後台
+    # C. 會員後台 (主要的 UI 修改都在這裡)
     view_member.render(supabase, client, question_db)
