@@ -3,10 +3,32 @@ from modules import audio, database
 
 def render(supabase, client, user_id, target_role, tier):
     
-    # 顯示圓形進度條
-    from modules.ui import render_stepper
-    render_stepper(st.session_state.step)
+    # ==========================
+    # 新版導航列 (按鈕式，可跳轉)
+    # ==========================
     
+    # 定義步驟名稱
+    steps = {
+        1: "1.口頭禪/暱稱",
+        2: "2.安慰語氣",
+        3: "3.鼓勵語氣",
+        4: "4.詼諧語氣",
+        5: "5.完成"
+    }
+
+    # 建立 6 欄 (前 5 欄放按鈕，第 6 欄作為右側留白 spacer)
+    # 這樣按鈕就會靠左擠在一起
+    cols = st.columns([1, 1, 1, 1, 1, 4]) 
+
+    for i in range(1, 6):
+        # 如果是當前步驟，用 Primary (實心紅)，否則用 Secondary (空心灰)
+        btn_type = "primary" if st.session_state.step == i else "secondary"
+        
+        # 建立按鈕，點擊後跳轉
+        if cols[i-1].button(steps[i], key=f"nav_step_{i}", type=btn_type, use_container_width=True):
+            st.session_state.step = i
+            st.rerun()
+
     st.markdown("---")
 
     # 角色中文顯示對照
@@ -26,29 +48,24 @@ def render(supabase, client, user_id, target_role, tier):
     # ==========================================
     if st.session_state.step == 1:
         
-        # --- 情境 A: 朋友/死黨 ---
         if target_role == "friend":
             st.subheader("STEP 1: 口頭禪炸彈 💣")
             ai_demo_text = "你覺得這個AI分身，跟我本尊有幾分像呢？"
             
-            # 文案
             id_label = "1. 設定身分"
-            id_help = f"請輸入 {role_zh} 平常 **怎麼叫您**？ (這會顯示在通話介面上)"
+            id_help = f"請輸入 {role_zh} 平常 **怎麼叫您**？"
             id_placeholder = "例如：阿強、東哥、小娟"
             
             sound_label = "2. 錄製開場白"
             sound_desc = "留一句話給換帖的拜把兄弟，讓他接起電話寒毛直豎。"
-            # 【修正】文字修正為 呷飽未
             sound_hint = "👉 **建議錄製：** 「呷飽未？」 或 「好久不見！！」 或 您的招牌口頭禪"
 
-        # --- 情境 B: 家人/伴侶 ---
         else:
             st.subheader("STEP 1: 輕輕喚你的名 ❤️")
             ai_demo_text = "想我嗎？"
             
-            # 文案
             id_label = "1. 設定身分"
-            id_help = f"請輸入 {role_zh} 平常 **怎麼叫您**？ (這會顯示在通話介面上)"
+            id_help = f"請輸入 {role_zh} 平常 **怎麼叫您**？"
             id_placeholder = "例如：老公、黑狗爸、老媽"
             
             sound_label = "2. 完美暱稱：錄製最自然親密呼喚"
@@ -56,25 +73,20 @@ def render(supabase, client, user_id, target_role, tier):
             sound_hint = "👉 **建議錄製：** 「老婆～」 或 「親愛的～」"
 
         # --- 介面渲染 ---
-        
-        # 區塊 1: 身分設定
         st.markdown(f"##### {id_label}")
         st.caption(id_help)
         member_nick = st.text_input("身分", placeholder=id_placeholder, label_visibility="collapsed", key="s1_mn")
         
-        st.markdown("") # 間距
+        st.markdown("") 
         
-        # 區塊 2: 錄音
         st.markdown(f"##### {sound_label}")
         st.write(sound_desc)
         st.caption(sound_hint)
-
-        # 【新增】手機錄音權限提示 (醒目顯示)
-        st.warning("📱 **手機用戶注意：** 若無法錄音，請點擊 LINE/FB 右上角選單，選擇**「在瀏覽器開啟 (Chrome/Safari)」**並允許麥克風權限。")
+        st.warning("📱 **手機用戶注意：** 若無法錄音，請點擊 LINE/FB 右上角選單，選擇**「在瀏覽器開啟」**並允許麥克風權限。")
         
         rec = st.audio_input("錄音 (2-3秒)", key="s1_rec")
 
-        # --- 存檔邏輯 ---
+        # 存檔邏輯
         can_save = rec and member_nick
         
         if can_save:
@@ -94,17 +106,14 @@ def render(supabase, client, user_id, target_role, tier):
                         audio.upload_audio_file(supabase, target_role, audio_bytes, "nickname")
                         audio.upload_audio_file(supabase, target_role, audio_bytes, "opening")
                     
-                    # 3. 訓練 AI
+                    # 3. 訓練
                     rec.seek(0)
                     audio.train_voice_sample(rec.read())
-                    
-                    # 4. 獎勵積分
                     database.update_profile_stats(supabase, user_id, xp_delta=1, log_reason="完成Step1")
                     
-                    # 5. 試聽
+                    # 4. 試聽
                     ai_wav = audio.generate_speech(ai_demo_text, tier)
                     final = audio.merge_audio_clips(audio_bytes, ai_wav)
-                    
                     st.audio(final, format="audio/mp3")
                     st.success("設定已儲存！獲得 1 點共鳴值")
 
@@ -126,10 +135,9 @@ def render(supabase, client, user_id, target_role, tier):
         st.subheader(f"STEP {st.session_state.step}: {title}")
         st.markdown(f'<div class="script-box">{content}</div>', unsafe_allow_html=True)
         
-        # 這裡也加上提示，因為這裡也需要錄音
         st.warning("📱 手機若無法錄音，請用 Chrome/Safari 開啟。")
-        
         rec = st.audio_input("請朗讀上方文字", key=f"step{st.session_state.step}_rec")
+        
         if rec:
             if st.button("💾 上傳訓練"):
                 with st.spinner("訓練 Voice ID 中..."):
