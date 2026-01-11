@@ -12,7 +12,7 @@ def load_css():
         .block-container {
             padding-top: 1rem !important;
             padding-bottom: 2rem !important;
-            max-width: 1000px !important;
+            max-width: 1200px !important;
         }
         
         /* 隱藏分隔線 */
