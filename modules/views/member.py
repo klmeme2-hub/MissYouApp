@@ -8,7 +8,7 @@ def render(supabase, client, question_db):
     xp = profile.get('xp', 0)
     energy = profile.get('energy', 30)
     
-    # 1. Header 區塊 (新版 EchoSoul 標題 + 右上角 Email)
+    # 1. Header 區塊 (標題與副標題更新)
     col_head_main, col_head_info = st.columns([7, 3], vertical_alignment="bottom")
     
     with col_head_main:
@@ -17,7 +17,7 @@ def render(supabase, client, question_db):
         <div style="display: flex; align-items: center; gap: 15px;">
             <div style="font-size: 40px;">♾️</div>
             <div>
-                <div class="header-title">EchoSoul・聲紋ID刻錄室</div>
+                <div class="header-title">EchoSoul · 聲紋ID刻錄室</div>
                 <div class="header-subtitle">這不僅僅是錄音，這是將你的聲紋數據化，作為你在數位世界唯一的身份識別</div>
             </div>
         </div>
@@ -71,13 +71,26 @@ def render(supabase, client, question_db):
     
     st.markdown('<div class="compact-divider"></div>', unsafe_allow_html=True)
 
-    # 4. Tab 分頁
-    t1, t2, t3, t4 = st.tabs(["🧬 聲紋訓練", "💎 等級說明", "📝 人設補完", "🧠 回憶補完"])
+    # 4. Tab 分頁 (順序調整：等級說明移至最右側)
+    # 舊順序：聲紋 -> 等級 -> 人設 -> 回憶
+    # 新順序：聲紋 -> 人設 -> 回憶 -> 等級
+    t1, t2, t3, t4 = st.tabs(["🧬 聲紋訓練", "📝 人設補完", "🧠 回憶補完", "💎 等級說明"])
 
-    with t1: tab_voice.render(supabase, client, st.session_state.user.user.id, target_role, tier)
-    with t2: tab_store.render(supabase, st.session_state.user.user.id, xp)
-    with t3: tab_persona.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp)
-    with t4: tab_memory.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp, question_db)
+    with t1: 
+        # Tab 1: 聲紋訓練
+        tab_voice.render(supabase, client, st.session_state.user.user.id, target_role, tier)
+        
+    with t2: 
+        # Tab 2: 人設補完 (原 Tab 3)
+        tab_persona.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp)
+        
+    with t3: 
+        # Tab 3: 回憶補完 (原 Tab 4)
+        tab_memory.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp, question_db)
+        
+    with t4: 
+        # Tab 4: 等級說明 (原 Tab 2，移至最後)
+        tab_store.render(supabase, st.session_state.user.user.id, xp)
 
     # 5. 底部登出區
     st.markdown("<br><br>", unsafe_allow_html=True)
