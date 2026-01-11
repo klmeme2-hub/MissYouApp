@@ -8,13 +8,16 @@ def render(supabase, client, question_db):
     xp = profile.get('xp', 0)
     energy = profile.get('energy', 30)
     
-    # 1. Header 區塊 (標題與副標題更新)
-    col_head_main, col_head_info = st.columns([7, 3], vertical_alignment="bottom")
+    # ==========================================
+    # 1. Header 區塊 (移除右上角 Email，保持乾淨)
+    # ==========================================
+    # 我們保留 columns 結構是為了讓標題不要太寬，視覺較集中
+    col_head_main, col_dummy = st.columns([8, 2], vertical_alignment="bottom")
     
     with col_head_main:
         # 使用 Emoji + 標題
         st.markdown("""
-        <div style="display: flex; align-items: center; gap: 15px;">
+        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
             <div style="font-size: 40px;">♾️</div>
             <div>
                 <div class="header-title">EchoSoul · 聲紋ID刻錄室</div>
@@ -23,18 +26,16 @@ def render(supabase, client, question_db):
         </div>
         """, unsafe_allow_html=True)
         
-    with col_head_info:
-        # 這裡只顯示 Email，登出按鈕移到最下面
-        st.markdown(f"""
-        <div class="user-info-container">
-            <div class="user-email-text">{st.session_state.user.user.email}</div>
-        </div>
-        """, unsafe_allow_html=True)
+    # 右邊 col_dummy 留空，不做任何顯示
 
+    # ==========================================
     # 2. 狀態列
+    # ==========================================
     ui.render_status_bar(tier, energy, xp, audio.get_tts_engine_type(profile))
     
+    # ==========================================
     # 3. 角色與分享控制台
+    # ==========================================
     allowed = ["朋友/死黨"]
     if tier != 'basic' or xp >= 20: allowed = list(config.ROLE_MAPPING.keys())
     
@@ -48,6 +49,7 @@ def render(supabase, client, question_db):
     has_op = audio.get_audio_bytes(supabase, target_role, "opening")
     
     with c_btn:
+        # 為了對齊，這裡稍微加一點 margin
         if st.button("🎁 生成邀請卡", type="primary", use_container_width=True):
             token = database.create_share_token(supabase, target_role)
             st.session_state.current_token = token
@@ -71,9 +73,9 @@ def render(supabase, client, question_db):
     
     st.markdown('<div class="compact-divider"></div>', unsafe_allow_html=True)
 
-    # 4. Tab 分頁 (順序調整：等級說明移至最右側)
-    # 舊順序：聲紋 -> 等級 -> 人設 -> 回憶
-    # 新順序：聲紋 -> 人設 -> 回憶 -> 等級
+    # ==========================================
+    # 4. Tab 分頁
+    # ==========================================
     t1, t2, t3, t4 = st.tabs(["🧬 聲紋訓練", "📝 人設補完", "🧠 回憶補完", "💎 等級說明"])
 
     with t1: 
@@ -81,20 +83,30 @@ def render(supabase, client, question_db):
         tab_voice.render(supabase, client, st.session_state.user.user.id, target_role, tier)
         
     with t2: 
-        # Tab 2: 人設補完 (原 Tab 3)
+        # Tab 2: 人設補完
         tab_persona.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp)
         
     with t3: 
-        # Tab 3: 回憶補完 (原 Tab 4)
+        # Tab 3: 回憶補完
         tab_memory.render(supabase, client, st.session_state.user.user.id, target_role, tier, xp, question_db)
         
     with t4: 
-        # Tab 4: 等級說明 (原 Tab 2，移至最後)
+        # Tab 4: 等級說明
         tab_store.render(supabase, st.session_state.user.user.id, xp)
 
-    # 5. 底部登出區
+    # ==========================================
+    # 5. 底部登出區 (Email 移到這裡)
+    # ==========================================
     st.markdown("<br><br>", unsafe_allow_html=True)
-    c_null, c_logout = st.columns([8, 2]) # 靠右
+    st.divider() # 加一條線區隔內容與 Footer
+    
+    # 左邊顯示 Email (靠右對齊)，右邊顯示登出按鈕
+    c_email, c_logout = st.columns([8, 2], vertical_alignment="center")
+    
+    with c_email:
+        # 顯示當前登入帳號
+        st.markdown(f"<div style='text-align:right; color:#666; font-size:14px;'>目前登入：{st.session_state.user.user.email}</div>", unsafe_allow_html=True)
+        
     with c_logout:
         if st.button("登出", key="footer_logout", use_container_width=True):
             supabase.auth.sign_out()
