@@ -8,18 +8,22 @@ def render(supabase, client, user_id, target_role, tier, xp):
         st.warning("🔒 需升級或累積 20 XP 解鎖此功能")
         return
 
-    # --- 頂部說明區 (含教學按鈕) ---
+    # --- 頂部說明區 (整合警語) ---
     col_info, col_btn = st.columns([7, 2], vertical_alignment="top")
     
     with col_info:
-        st.info("上傳 LINE 對話紀錄 (.txt)，讓 AI 學習您的口頭禪與用詞習慣。")
+        # 【修改點】將警語合併在此，使用 Markdown 換行與加粗
+        st.info("""
+        上傳 LINE 對話紀錄 (.txt)，讓 AI 學習您的口頭禪與用詞習慣。
+        
+        ⚠️ **注意：每次上傳將會「覆蓋」舊的語氣設定。請確保上傳的是與該對象（如：妻子）的專屬對話紀錄，以免造成人設混亂。**
+        """)
     
     with col_btn:
-        # 使用 Session State 控制教學顯示/隱藏
+        # 教學按鈕邏輯
         if "show_line_tutorial" not in st.session_state:
             st.session_state.show_line_tutorial = False
         
-        # 按鈕切換狀態
         if st.button("📖 上傳教學", use_container_width=True, help="點擊查看如何匯出 LINE 紀錄"):
             st.session_state.show_line_tutorial = not st.session_state.show_line_tutorial
 
@@ -50,21 +54,18 @@ def render(supabase, client, user_id, target_role, tier, xp):
                 st.session_state.show_line_tutorial = False
                 st.rerun()
 
-    # --- 警語 (新增) ---
-    st.warning("⚠️ **注意：** 每次上傳將會 **「覆蓋」** 舊的語氣設定。請確保上傳的是與該對象（如：妻子）的專屬對話紀錄，以免造成人設混亂。")
+    # (這裡原本的 st.warning 已移除，整合至上方)
 
     # --- 輸入區塊 ---
     
     # 1. 讀取使用者設定的名字
     member_name = st.text_input("您的名字 (在LINE對話中的顯示名稱)", value="爸爸", key="per_mn", help="AI 需要知道哪一句話是您說的。")
     
-    # 2. 顯示身分 (唯讀)
+    # 2. 讀取 Tab 1 設定的身分 (僅讀取邏輯，不顯示)
     saved_persona = database.load_persona(supabase, target_role)
     current_identity = "我"
     if saved_persona and saved_persona.get('member_nickname'):
         current_identity = saved_persona['member_nickname']
-    
-    # 這裡移除了 st.caption 顯示身分的代碼 (如您之前要求)
 
     # 3. 檔案上傳
     up_file = st.file_uploader("上傳紀錄檔", type="txt", key="per_up")
