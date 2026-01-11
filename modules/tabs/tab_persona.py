@@ -1,5 +1,6 @@
 import streamlit as st
-from modules import database
+import json
+from modules import database, audio
 
 def render(supabase, client, user_id, target_role, tier, xp):
     # 權限檢查
@@ -9,65 +10,93 @@ def render(supabase, client, user_id, target_role, tier, xp):
 
     st.info("上傳 LINE 對話紀錄 (.txt)，讓 AI 學習您的口頭禪與用詞習慣。")
     
-    # 連結教學 (可選)
-    # st.caption("[教學連結] 如何匯出 LINE 對話紀錄?")
-
-    # 1. 讀取使用者設定的名字 (LINE顯示名稱)
-    # 因為移除了暱稱欄位，這裡我們讓版面變寬，只留一個輸入框
-    member_name = st.text_input("您的名字 (在LINE對話中的顯示名稱)", value="爸爸", key="per_mn", help="AI 需要知道哪一句話是您說的，請輸入您在聊天紀錄中的名字。")
+    # 1. 讀取使用者設定的名字
+    member_name = st.text_input("您的名字 (在LINE對話中的顯示名稱)", value="爸爸", key="per_mn", help="AI 需要知道哪一句話是您說的。")
     
-    # 2. 自動讀取 Tab 1 設定的「專屬暱稱」
-    # 用途：告訴 GPT-4o 必須用這個暱稱稱呼對方
+    # 2. 顯示身分 (唯讀)
     saved_persona = database.load_persona(supabase, target_role)
-    target_nickname = "寶貝" # 預設值
+    current_identity = "我"
     if saved_persona and saved_persona.get('member_nickname'):
-        target_nickname = saved_persona['member_nickname']
-        
-    # 顯示目前系統認知的暱稱 (唯讀，讓會員知道 AI 會怎麼叫他)
-    st.caption(f"ℹ️ 系統已綁定稱呼：AI 將會稱呼您為 **「{target_nickname}」** (若需修改請至「聲紋訓練」Step 1)")
+        current_identity = saved_persona['member_nickname']
+    st.caption(f"ℹ️ 當前身分設定：AI 將顯示為 **「{current_identity}」**。")
 
     # 3. 檔案上傳
     up_file = st.file_uploader("上傳紀錄檔", type="txt", key="per_up")
     
-    # 4. 按鈕與執行邏輯
-    # 修改按鈕文字為強調 GPT-4o
+    # 4. 執行按鈕
     if st.button("✨ 啟動 GPT-4o 建立人設"):
         if up_file and member_name:
-            with st.spinner("GPT-4o 正在閱讀並分析語氣特徵..."):
+            with st.spinner("GPT-4o 正在閱讀回憶、尋找感動瞬間..."):
                 try:
                     # 讀取檔案
                     raw = up_file.read().decode("utf-8")
                     
-                    # 構建 Prompt
+                    # 構建 Prompt (要求 JSON 格式回傳)
                     prompt = f"""
-                    分析對話紀錄。
-                    主角(我)：{member_name}
-                    對象：{target_role}
+                    分析這份 LINE 對話紀錄。
+                    
+                    【角色定義】：
+                    - 主角 (我)：{member_name}
+                    - 對話對象：{target_role}
                     
                     【任務目標】：
-                    1. 分析【主角】的說話風格（口頭禪、語氣助詞、長短句習慣、常用表情符號）。
-                    2. 針對主角的個性生成一段 System Prompt。
-                    3. 【重要】：強制要求 AI 在對話中，必須使用暱稱「{target_nickname}」來稱呼對方。
+                    1. **語氣分析**：深度模仿【主角】的說話風格（口頭禪、語氣助詞、斷句習慣）。
+                    2. **稱呼規範**：在生成的對話中，請一律使用「我」自稱，並用「你」稱呼對方。**絕對不要**在句子中加入對方的名字或暱稱（因為系統會在語音開頭自動拼接真實呼喚）。
+                    3. **回憶提取**：請從對話中找出一段具體、溫馨或有趣的「往事」（例如一起去過哪裡、吃過什麼、發生的小意外）。
+                    
+                    【輸出格式 (JSON)】：
+                    請直接回傳以下 JSON 格式，不要有其他文字：
+                    {{
+                        "system_prompt": "你現在扮演... (請填入完整的人設指令)",
+                        "flashback": "還記得那天..." (請填入提取出的往事，用口語表達，約 30-50 字)
+                    }}
                     
                     資料片段：
-                    {raw[-25000:]} 
+                    {raw[-30000:]} 
                     """
-                    # 取最後 25000 字元 (GPT-4o Context 很大，可以多吃一點)
 
-                    # 呼叫 GPT-4o
-                    res = client.chat.completions.create(
+                    # 呼叫 GPT-4o (強制 JSON 模式)
+                    response = client.chat.completions.create(
                         model="gpt-4o", 
-                        messages=[{"role": "user", "content": prompt}]
+                        messages=[{"role": "user", "content": prompt}],
+                        response_format={ "type": "json_object" }
                     )
                     
-                    # 存入資料庫 (只更新 content, 不動 member_nickname)
-                    # 這裡使用 load_persona 讀取到的 nickname 再次傳入以防萬一，或直接只更新 content
-                    # 為了安全，我們呼叫 save_persona_summary 時保留原有的 nickname
-                    database.save_persona_summary(supabase, target_role, res.choices[0].message.content, member_nickname=target_nickname)
+                    # 解析結果
+                    result = json.loads(response.choices[0].message.content)
+                    sys_prompt = result['system_prompt']
+                    flashback_text = result['flashback']
                     
-                    # 成功訊息
-                    st.success("✅ 已使用 GPT-4o 建立人設")
+                    # 1. 存入資料庫 (更新人設)
+                    database.save_persona_summary(supabase, target_role, sys_prompt, member_nickname=current_identity)
+                    
+                    # 2. 準備驚喜 (語音生成 + 拼接)
+                    # 取得 Tab 1 錄製的完美暱稱 (例如：老婆～)
+                    nick_bytes = audio.get_audio_bytes(supabase, target_role, "nickname")
+                    
+                    # 生成往事語音 (AI 念出 flashback)
+                    flashback_audio = audio.generate_speech(flashback_text, tier)
+                    
+                    # 拼接：[真實暱稱] + [AI往事]
+                    if nick_bytes and flashback_audio:
+                        final_audio = audio.merge_audio_clips(nick_bytes, flashback_audio)
+                    else:
+                        final_audio = flashback_audio
+
+                    # 3. 呈現結果
+                    st.success("✅ 已使用 GPT-4o 建立人設！AI 已學會您的語氣。")
                     st.balloons()
+                    
+                    st.markdown("---")
+                    st.markdown("### 😲 AI 好像想起了什麼...")
+                    
+                    # 顯示對話框
+                    st.info(f"🗣️ **{current_identity}**：\n\n{flashback_text}")
+                    
+                    # 自動播放語音
+                    if final_audio:
+                        st.audio(final_audio, format="audio/mp3", autoplay=True)
+                        st.caption("🔊 (聽聽看，這是不是你說話的感覺？)")
                     
                 except Exception as e:
                     st.error(f"分析失敗，請檢查檔案格式。錯誤：{e}")
