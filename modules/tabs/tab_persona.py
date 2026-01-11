@@ -3,7 +3,6 @@ import json
 from modules import database, audio
 
 def render(supabase, client, user_id, target_role, tier, xp):
-    # 權限檢查
     if tier == 'basic' and xp < 20:
         st.warning("🔒 需升級或累積 20 XP 解鎖此功能")
         return
@@ -13,14 +12,21 @@ def render(supabase, client, user_id, target_role, tier, xp):
     # 1. 讀取使用者設定的名字
     member_name = st.text_input("您的名字 (在LINE對話中的顯示名稱)", value="爸爸", key="per_mn", help="AI 需要知道哪一句話是您說的。")
     
-    # 2. [邏輯保留，UI 隱藏] 讀取 Tab 1 設定的身分
-    # 我們需要這個值來存檔，但不需要顯示給使用者看
+    # 2. 顯示身分與檢查錄音 (新增區塊)
     saved_persona = database.load_persona(supabase, target_role)
     current_identity = "我"
     if saved_persona and saved_persona.get('member_nickname'):
         current_identity = saved_persona['member_nickname']
     
-    # 這裡移除了 st.caption 顯示身分的代碼
+    st.markdown(f"ℹ️ **當前身分設定：** AI 將顯示為 **「{current_identity}」**")
+
+    # 【新增】檢查目前已存的真實暱稱
+    nick_bytes = audio.get_audio_bytes(supabase, target_role, "nickname")
+    if nick_bytes:
+        st.caption("🎵 目前已儲存的開頭暱稱 (若不對請至聲紋訓練重錄)：")
+        st.audio(nick_bytes, format="audio/mp3")
+    else:
+        st.caption("⚠️ 尚未錄製此角色的完美暱稱 (AI 將無法拼接真實聲音)")
 
     # 3. 檔案上傳
     up_file = st.file_uploader("上傳紀錄檔", type="txt", key="per_up")
@@ -43,7 +49,7 @@ def render(supabase, client, user_id, target_role, tier, xp):
                     
                     【任務目標】：
                     1. **語氣分析**：深度模仿【主角】的說話風格（口頭禪、語氣助詞、斷句習慣）。
-                    2. **稱呼規範**：在生成的對話中，請一律使用「我」自稱，並用「你」稱呼對方。
+                    2. **稱呼規範**：在生成的對話中，請一律使用「我」自稱，並用「你」稱呼對方。**絕對不要**在句子中加入對方的名字或暱稱（因為系統會在語音開頭自動拼接真實呼喚）。
                     3. **回憶提取**：請從對話中找出一段具體、溫馨或有趣的「往事」（例如一起去過哪裡、吃過什麼、發生的小意外）。
                     
                     【輸出格式 (JSON)】：
@@ -57,7 +63,7 @@ def render(supabase, client, user_id, target_role, tier, xp):
                     {raw[-30000:]} 
                     """
 
-                    # 呼叫 GPT-4o (強制 JSON 模式)
+                    # 呼叫 GPT-4o
                     response = client.chat.completions.create(
                         model="gpt-4o", 
                         messages=[{"role": "user", "content": prompt}],
@@ -72,18 +78,15 @@ def render(supabase, client, user_id, target_role, tier, xp):
                     # 1. 存入資料庫
                     database.save_persona_summary(supabase, target_role, sys_prompt, member_nickname=current_identity)
                     
-                    # 2. 準備驚喜 (語音生成 + 拼接)
-                    nick_bytes = audio.get_audio_bytes(supabase, target_role, "nickname")
-                    
-                    # 生成往事語音
+                    # 2. 生成往事語音
                     flashback_audio = audio.generate_speech(flashback_text, tier)
                     
-                    # 拼接
+                    # 3. 拼接：[真實暱稱] + [AI往事]
                     final_audio = flashback_audio
                     if nick_bytes and flashback_audio:
                         final_audio = audio.merge_audio_clips(nick_bytes, flashback_audio)
 
-                    # 3. 呈現結果 (文案更新)
+                    # 4. 呈現結果
                     st.success("✅ 已使用 GPT-4o 建立人設")
                     st.balloons()
                     
@@ -93,8 +96,9 @@ def render(supabase, client, user_id, target_role, tier, xp):
                     
                     if final_audio:
                         st.audio(final_audio, format="audio/mp3", autoplay=True)
+                        st.caption("🔊 (聽聽看，這是不是你說話的感覺？)")
                     
                 except Exception as e:
-                    st.error(f"分析失敗，請檢查檔案格式。錯誤：{e}")
+                    st.error(f"分析失敗：{e}")
         else:
             st.warning("請填寫您的名字並上傳檔案")
