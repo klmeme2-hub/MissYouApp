@@ -3,198 +3,105 @@ import streamlit as st
 def load_css():
     st.markdown("""
     <style>
-        /* =============================================
-           1. 全局字體控制 (強制 16px / 1.6)
-           ============================================= */
-        
-        /* 基礎設定 */
-        .stApp {
-            background-color: #0E1117;
-            color: #FAFAFA;
+        /* --- 1. 全局設定 --- */
+        .stApp, p, h1, h2, h3, h4, h5, h6, label, span, div, li { 
+            color: #FAFAFA !important; 
         }
         
-        /* 針對所有文字元件強制設定 */
-        html, body, p, label, span, div, li, .stMarkdown, .caption {
-            font-size: 16px !important;
-            line-height: 1.6 !important;
-            font-family: "Source Sans Pro", sans-serif;
-            color: #FAFAFA !important;
-        }
-        
-        /* 標題維持層級，但行高統一 */
-        h1 { font-size: 34px !important; line-height: 1.4 !important; }
-        h2 { font-size: 28px !important; line-height: 1.4 !important; }
-        h3 { font-size: 24px !important; line-height: 1.4 !important; }
-        
-        /* 調整主容器 */
+        /* 主區塊寬度 1000px */
         .block-container {
-            padding-top: 2rem !important;
-            padding-bottom: 5rem !important;
+            padding-top: 1rem !important;
+            padding-bottom: 2rem !important;
             max-width: 1000px !important;
         }
         
-        /* 隱藏預設分隔線 */
+        /* 隱藏分隔線 */
         hr { display: none !important; }
-
-        /* =============================================
-           2. 互動元件字體修正
-           ============================================= */
+        .stElementContainer { margin-bottom: -15px !important; }
         
-        /* 按鈕文字 */
-        button, .stButton > button {
-            font-size: 16px !important;
-            line-height: 1.6 !important;
-            font-weight: 600 !important;
-            height: auto !important;
-            padding-top: 0.5rem !important;
-            padding-bottom: 0.5rem !important;
-        }
-        /* 特別針對 Primary 按鈕 */
-        button[kind="primary"] {
-            background-color: #FF4B4B !important;
-            color: white !important;
-            border: none;
-        }
-        
-        /* 輸入框內的文字 */
-        .stTextInput input, .stSelectbox div[data-baseweb="select"] div {
-            font-size: 16px !important;
-            line-height: 1.6 !important;
-            color: white !important;
-            background-color: #1F2229 !important;
-        }
-        
-        /* 下拉選單選項 */
-        div[data-baseweb="popover"] li, div[data-baseweb="popover"] span {
-            font-size: 16px !important;
-        }
-
-        /* Tab 分頁標籤 */
-        button[data-baseweb="tab"] div {
-            font-size: 16px !important;
-            font-weight: 600 !important;
-        }
-
-        /* =============================================
-           3. 自定義元件樣式
-           ============================================= */
-
-        /* Header */
-        .header-title {
-            font-size: 34px !important;
-            font-weight: 700 !important;
+        /* --- 2. 標題與 Header --- */
+        .header-title h1 {
+            font-size: 36px !important;
             margin-bottom: 5px !important;
+            padding: 0 !important;
+            text-shadow: 0 0 15px rgba(124, 77, 255, 0.6);
+            line-height: 1.1;
         }
         .header-subtitle {
             font-size: 16px !important;
-            color: #B0B0B0 !important;
+            color: #BBB !important;
+            margin-top: 0px !important;
+            margin-bottom: 15px !important;
             font-weight: 400;
         }
-
-        /* 右上角用戶資訊 */
+        
+        /* 右上角用戶資訊 (僅電腦版) */
         .user-info-box {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            justify-content: center;
+            display: flex; flex-direction: column; align-items: flex-end; justify-content: center; height: 100%; margin-top: 10px;
         }
-        .user-email {
-            font-size: 14px !important; /* Email 稍微小一點點做區隔，也可改16 */
-            color: #888 !important;
-            margin-bottom: 5px;
-        }
+        .user-email { font-size: 14px !important; color: #888 !important; margin-bottom: 5px; }
 
-        /* 狀態列 */
+        /* --- 3. 狀態列 --- */
         .status-bar {
             background: #1A1C24;
             border: 1px solid #333;
             padding: 12px 20px;
             border-radius: 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            display: flex; justify-content: space-between; align-items: center;
             margin-bottom: 25px;
         }
-        .status-text { 
-            font-size: 16px !important; /* 強制 16px */
-            font-weight: 500; 
-        }
+        .status-text { font-size: 15px; font-weight: 500; }
 
-        /* Stepper (圓形進度條) */
-        .step-wrapper {
-            display: flex; justify-content: center; align-items: center;
-            margin: 30px 0; width: 100%; position: relative;
+        /* --- 4. 輸入框與按鈕 --- */
+        .stSelectbox > div > div, .stTextInput > div > div > input {
+            background-color: #1F2229 !important;
+            border: 1px solid #444 !important;
+            color: white !important;
         }
-        .step-item {
-            text-align: center; position: relative; z-index: 2; padding: 0 20px;
+        button[kind="primary"] {
+            background-color: #FF4B4B !important; color: white !important; border: none;
         }
-        .step-circle {
-            width: 32px; height: 32px;
-            border-radius: 50%;
-            background: #1E1E1E; border: 2px solid #444; color: #666;
-            display: flex; align-items: center; justify-content: center;
-            font-weight: bold; font-size: 14px !important; /* 圓圈內數字維持小一點 */
-            margin: 0 auto 5px;
+        /* 次要按鈕樣式 (用於未選中的導航) */
+        button[kind="secondary"] {
+            background-color: transparent !important;
+            color: #AAA !important;
+            border: 1px solid #444 !important;
         }
-        .step-label { 
-            font-size: 14px !important; /* 標籤文字稍小，避免擁擠，若需16可改 */
-            color: #888; 
+        button[kind="secondary"]:hover {
+            border-color: #FF4B4B !important;
+            color: #FF4B4B !important;
         }
-        .step-line-bg {
-            position: absolute; top: 16px; left: 10%; right: 10%;
-            height: 2px; background: #333; z-index: 1;
-        }
-        .step-active .step-circle {
-            background: #FF4B4B; border-color: #FF4B4B; color: white;
-        }
-        .step-active .step-label { color: #FF4B4B !important; font-weight: bold; }
+        
+        /* --- 5. 卡片樣式 --- */
+        .question-card-active { background-color: #1A1C24; padding: 20px; border-radius: 12px; border: 2px solid #2196F3; text-align: center; margin-bottom: 20px; }
+        .q-text { font-size: 20px; color: #FFFFFF !important; font-weight: bold; margin: 10px 0; }
+        .history-card { background-color: #262730; padding: 12px; border: 1px solid #444; border-radius: 8px; margin-bottom: 8px; }
+        .script-box { background: #1E1E1E; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #FFD700; color: #DDD !important; }
+        .ai-bubble { background-color: #262730; padding: 15px; border-radius: 10px; border-left: 3px solid #FF4B4B; margin: 10px 0; color: #E0E0E0 !important; }
+        .dashboard-card { background-color: #1A1C24; padding: 15px; border-radius: 10px; border: 1px solid #333; text-align: center; margin-bottom: 10px; }
+
+        #MainMenu, footer {visibility: hidden;}
 
         /* 手機版適配 */
         @media (max-width: 600px) {
-            .step-line-bg { display: none; }
             .user-info-box { display: none; }
-            .status-bar { flex-direction: column; align-items: flex-start; gap: 10px; }
-            /* 手機版字體保持 16px 易讀性 */
-            p, div, span, label { font-size: 16px !important; }
+            .status-bar { flex-direction: column; align-items: flex-start; gap: 8px; padding: 15px; }
         }
     </style>
     """, unsafe_allow_html=True)
 
-def render_stepper(current_step):
-    steps = ["喚名", "安慰", "鼓勵", "詼諧", "完成"]
-    items = ""
-    for i, name in enumerate(steps):
-        is_active = "step-active" if i + 1 == current_step else ""
-        items += f'<div class="step-item {is_active}"><div class="step-circle">{i+1}</div><div class="step-label">{name}</div></div>'
-    st.markdown(f'<div class="step-wrapper"><div class="step-line-bg"></div>{items}</div>', unsafe_allow_html=True)
+# 已移除 render_stepper，因為改用按鈕列了
 
 def render_status_bar(tier, energy, xp, engine_type, is_guest=False):
     tier_map = {"basic": "初級練習生", "intermediate": "中級守護者", "advanced": "高級刻錄師", "eternal": "永恆上鏈"}
     tier_name = tier_map.get(tier, tier)
     engine = "Gemini Pro" if engine_type == "elevenlabs" else "Gemini Flash"
-    
     icon = "🚀" if tier == "basic" else "🛡️"
     if tier == "advanced": icon = "🔥"
-    
     left = f"👋 訪客" if is_guest else f"{icon} {tier_name}"
     xp_html = f'<span style="margin-left:15px; color:#FFD700">⭐ XP: {xp}</span>' if not is_guest else ''
-    
-    st.markdown(f"""
-    <div class="status-bar">
-        <div class="status-text" style="color:#FFF !important;">{left}</div>
-        <div class="status-text">
-            <span style="color:#FF4081; font-weight:bold;">❤️ 電量: {energy}</span>
-            {xp_html}
-            <span style="margin-left:15px; color:#888;">| {engine}</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""<div class="status-bar"><div class="status-text" style="color:#FFF !important;">{left}</div><div class="status-text"><span style="color:#FF4081; font-weight:bold;">❤️ 電量: {energy}</span>{xp_html}<span style="margin-left:15px; color:#888;">| {engine}</span></div></div>""", unsafe_allow_html=True)
 
-def render_question_card(question, index, total):
-    st.info(f"🎙️ **Q{index}/{total}: {question}**")
-
-def render_history_card(q, a):
-    st.markdown(f"> **Q:** {q}\n> **A:** {a[:30]}...")
-
-def render_dashboard_card(title, content):
-    st.metric(label=title, value=content)
+def render_question_card(question, index, total): st.info(f"🎙️ **Q{index}/{total}: {question}**")
+def render_history_card(q, a): st.markdown(f"> **Q:** {q}\n> **A:** {a[:30]}...")
+def render_dashboard_card(title, content): st.metric(label=title, value=content)
