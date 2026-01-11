@@ -17,7 +17,7 @@ def render(supabase, client, question_db):
         <div style="display: flex; align-items: center; gap: 15px;">
             <div style="font-size: 40px;">♾️</div>
             <div>
-                <div class="header-title">EchoSoul・聲紋 ID</div>
+                <div class="header-title">EchoSoul・聲紋ID刻錄室</div>
                 <div class="header-subtitle">這不僅僅是錄音，這是將你的聲紋數據化，作為你在數位世界唯一的身份識別</div>
             </div>
         </div>
