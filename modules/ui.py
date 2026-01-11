@@ -16,8 +16,8 @@ def load_css():
         /* 【關鍵修改】全局行高縮小 (1.6 -> 1.35) */
         p, label, span, div, li, .stMarkdown, button {
             color: #E2E8F0 !important;
-            font-size: 15px !important; /* 字體稍微縮小一點點 */
-            line-height: 1.35 !important; /* 讓行距更緊湊 */
+            font-size: 16px !important; /* 字體稍微縮小一點點 */
+            line-height: 1.45 !important; /* 讓行距更緊湊 */
         }
         
         /* 標題層級設定 */
