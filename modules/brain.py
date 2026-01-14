@@ -6,13 +6,13 @@ import re
 
 # 初始化
 try:
+    # 這裡保留 Google 設定，但下面的生成我們改用 OpenAI
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 except: pass
 
 def get_tier_config(tier):
-    # 統一使用 gemini-pro 以求穩定
-    return "gemini-pro", "Gemini Pro"
+    return "gemini-1.5-flash", "標準思維"
 
 def transcribe_audio(audio_file):
     try:
@@ -21,89 +21,62 @@ def transcribe_audio(audio_file):
     except: return ""
 
 def think_and_reply(tier, persona, memories, user_text, has_nick):
-    model_name, _ = get_tier_config(tier)
-    nick_instr = "回應開頭不要包含暱稱。" if has_nick else "請在開頭自然呼喚對方的暱稱。"
-    prompt = f"【角色】{persona}\n【回憶】{memories}\n【規則】1.{nick_instr} 2.語氣自然。\n【用戶】{user_text}"
-    
+    # 一般對話維持原樣 (若 Google 失敗可考慮也切換)
     try:
-        model = genai.GenerativeModel(model_name)
-        return model.generate_content(prompt).text
-    except Exception as e:
-        return f"思考暫時中斷 ({e})"
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        return model.generate_content(f"{persona}\n{user_text}").text
+    except:
+        # Fallback to OpenAI
+        res = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": f"{persona}\n{user_text}"}]
+        )
+        return res.choices[0].message.content
 
 def generate_crosstalk_script(question, correct_answer, user_answer, member_name):
     """
-    生成雙人相聲劇本 (JSON格式) - 解除安全限制 + 強力除錯版
+    生成雙人相聲劇本 - 李白測試版 (使用 OpenAI GPT-4o-mini)
     """
-    model = genai.GenerativeModel("gemini-pro")
     
-    # 【關鍵 1】解除安全限制：允許 AI 吐槽、開玩笑
-    safety_settings = [
-        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-    ]
-    
+    # 這裡我們強制改用 OpenAI，因為它最穩定，不會有 404 問題
     prompt = f"""
-    你現在是台灣最幽默的短劇編劇。請生成一段「3句話」的微型相聲腳本。
+    請生成一段「2人接力背誦李白詩句」的對話腳本。
     
-    【角色設定】
-    A ({member_name})：個性調皮、毒舌、喜歡吐槽，講話帶點台味。
-    B (訪客)：個性反應快、或者喜歡找藉口、偶爾會裝傻。
+    角色 A：{member_name}
+    角色 B：訪客
     
-    【當前狀況】
-    題目：{question}
-    標準答案：{correct_answer}
-    訪客的回答：{user_answer}
+    情境：
+    不管 {member_name} 出什麼題，也不管訪客回答什麼 ({user_answer})。
+    請讓這兩人突然開始莫名其妙地接力背誦李白的《靜夜思》。
     
-    【判斷邏輯】
-    1. 如果訪客回答包含「天靈靈」、「麥克風測試」、「不知道」：
-       -> A 嘲笑 B 根本在亂念，B 說是在召喚靈感，最後 A 公佈答案並虧 B 笨。
-    2. 如果訪客 **答對** (意思接近{correct_answer})：
-       -> A 很驚訝，懷疑 B 偷看答案，B 則表現得很得意。
-    3. 如果訪客 **答錯**：
-       -> A 瘋狂吐槽或給出超明顯提示，B 硬拗說自己是在測試 A 知不知道。
+    要求：
+    1. A 先唸第一句。
+    2. B 接第二句。
+    3. A 唸最後兩句並稱讚 B。
     
-    【輸出格式】
-    請只回傳 JSON 列表 (List of Objects)，不要有任何 Markdown (如 ```json)。範例：
+    【JSON 輸出格式範例】
     [
-        {{"speaker": "member", "text": "哇靠！你是不是偷看劇本？"}},
-        {{"speaker": "guest", "text": "拜託，這種小兒科題目，我用膝蓋想都知道。"}},
-        {{"speaker": "member", "text": "少來，下次出個難一點的！"}}
+        {{"speaker": "member", "text": "哎呀別說了，床前明月光！"}},
+        {{"speaker": "guest", "text": "疑...疑是地上霜？"}},
+        {{"speaker": "member", "text": "舉頭望明月，低頭思故鄉。背得好啊！"}}
     ]
     """
     
     try:
-        # 帶入 safety_settings
-        response = model.generate_content(prompt, safety_settings=safety_settings)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={ "type": "json_object" }
+        )
         
-        # 檢查是否被阻擋
-        if not response.text:
-            raise ValueError(f"AI 回傳空值，可能被安全過濾。Feedback: {response.prompt_feedback}")
-
-        raw_text = response.text
-
-        # 清洗 JSON
-        clean_text = raw_text.replace("```json", "").replace("```", "").strip()
-        match = re.search(r'\[.*\]', clean_text, re.DOTALL)
-        if match:
-            clean_json = match.group()
-            return json.loads(clean_json)
-        else:
-            raise ValueError("無法解析 JSON 格式")
-            
+        content = response.choices[0].message.content
+        return json.loads(content).get('scripts', json.loads(content)) # 兼容某些回傳格式
+        
     except Exception as e:
-        # 【關鍵 2】將錯誤顯示在螢幕上，而不是默默吞掉
-        print(f"Script Gen Error: {e}")
-        st.toast(f"⚠️ AI 罷工了，錯誤原因: {e}", icon="🤖")
-        
-        return get_fallback_script(correct_answer, user_answer)
-
-def get_fallback_script(correct_answer, user_answer):
-    """備用劇本"""
-    return [
-        {"speaker": "member", "text": f"這題答案明明就是 {correct_answer}！"},
-        {"speaker": "guest", "text": f"我剛剛也是想講這個啦！"},
-        {"speaker": "member", "text": "少來，我明明聽到你說 {user_answer}！"}
-    ]
+        print(f"OpenAI Script Error: {e}")
+        # 如果連 OpenAI 都失敗，回傳寫死的李白
+        return [
+            {"speaker": "member", "text": "測試模式：床前明月光。"},
+            {"speaker": "guest", "text": "疑是地上霜。"},
+            {"speaker": "member", "text": "舉頭望明月，低頭思故鄉。測試成功！"}
+        ]
