@@ -1,12 +1,10 @@
 import streamlit as st
 from modules import audio, database
+import random
 
 def render(supabase, client, user_id, target_role, tier):
     
-    # ==========================
-    # 新版導航列 (按鈕式，可跳轉)
-    # ==========================
-    
+    # 導航列
     steps = {
         1: "1.口頭禪/暱稱",
         2: "2.安慰語氣",
@@ -15,10 +13,7 @@ def render(supabase, client, user_id, target_role, tier):
         5: "5.完成"
     }
 
-    # 【調整比例】: 第一欄給 1.5，其他給 1，右邊留白
-    # 這樣可以容納較長的文字，同時保持靠左
     cols = st.columns([1.5, 1, 1, 1, 1, 3]) 
-
     for i in range(1, 6):
         btn_type = "primary" if st.session_state.step == i else "secondary"
         if cols[i-1].button(steps[i], key=f"nav_step_{i}", type=btn_type, use_container_width=True):
@@ -27,17 +22,61 @@ def render(supabase, client, user_id, target_role, tier):
 
     st.markdown("---")
 
-    # (以下內容維持不變，請保留原有的邏輯)
-    # ... 為了確保代碼完整性，我把剩下的邏輯也貼上 ...
-
+    # 角色顯示設定
     ROLE_DISPLAY_NAMES = {
         "friend": "朋友/死黨", "partner": "妻子/丈夫/伴侶", "son": "兒子",
         "daughter": "女兒", "junior": "兒子/女兒/晚輩", "elder": "長輩/父母", "others": "親友"
     }
     role_zh = ROLE_DISPLAY_NAMES.get(target_role, target_role)
 
-    # STEP 1
+    # 初始化劇本索引
+    if "script_idx" not in st.session_state:
+        st.session_state.script_idx = 0
+
+    # ==========================================
+    # 劇本池 (Script Pool)
+    # ==========================================
+    SCRIPTS_POOL = {
+        2: { # 安慰語氣
+            "title": "刻錄「安慰語氣」",
+            "file": "tone_comfort",
+            "contents": [
+                "欸，我知道你現在心裡一定超悶的啦，感覺是不是付出的心血都白費了？吼，沒關係啦，真的沒關係，讓我抱一下。你看你齁，把自己逼得那麼緊，早就累壞了。我們先找個地方坐下來，喝杯熱的，休息一下好不好？",
+                "乖，不要哭了，看你這樣我也好難過。這世界上本來就有很多事情是不公平的，你已經盡力了，大家都看在眼裡。今天晚上我們不談正事，好好睡一覺，明天太陽升起來，又是一條好漢，對不對？",
+                "其實，失敗真的沒什麼大不了的。我以前也摔過很重的一跤啊，那時候覺得天都要塌下來了。但現在回頭看，那只是人生的一個小插曲而已。你現在覺得過不去的坎，過幾年看，都只是故事。我會一直陪著你的。",
+                "別氣餒啦，這種鳥事誰沒遇過？重要的是我們從裡面學到了什麼。你有一顆很善良、很堅強的心，這才是最珍貴的。不要因為別人的幾句話就否定自己，你在我心中永遠是最棒的。",
+                "好啦好啦，我知道你很委屈。來，肩膀借你靠。有時候人生就是這樣，起起落落的嘛。我們去吃頓好吃的，把這些不開心的事都吃進肚子裡消化掉，然後重新出發！"
+            ]
+        },
+        3: { # 鼓勵語氣
+            "title": "刻錄「鼓勵語氣」",
+            "file": "tone_encourage",
+            "contents": [
+                "哇塞！你真的決定要開始學那個東西了喔？超酷的啦！我知道一開始會很難、很煩，那介面看起來像外星文，沒錯啦！但你想想看，等你真的學會了，那個成就感會有多爆炸？衝啊！我等你做出第一個成品！",
+                "你一定可以的啦！我看人很準的。你身上有一種別人沒有的毅力，只要你下定決心，沒有什麼事情是做不到的。不要害怕挑戰，挑戰是成長的養分。加油，我絕對挺你到底！",
+                "別猶豫了，機會是不等人的！現在就是最好的時機。雖然前面這條路看起來有點暗，但只要你跨出第一步，路就會慢慢亮起來。相信自己的直覺，勇敢地去闖一闖吧！",
+                "我看好你喔！這計畫聽起來超有搞頭的。雖然現在還在草創期，會比較辛苦一點，但只要撐過去，果實一定很甜美。記得，遇到困難隨時來找我商量，我們一起想辦法解決！",
+                "把頭抬起來！這點小挫折算什麼？你可是我看過最有潛力的人欸！不要讓一時的失敗擊倒你。整理一下心情，重新調整步伐，再一次，這次你一定會成功的！"
+            ]
+        },
+        4: { # 詼諧語氣
+            "title": "刻錄「輕鬆詼諧語氣」",
+            "file": "tone_humor",
+            "contents": [
+                "我跟你說，我昨天去圖書館 K 書，真的糗死了啦！我把水壺放在桌上，想說要裝一下文青對不對？結果我一個不小心，那個金屬水壺直接滾到地上，發出那種「匡啷匡啷」超大聲的聲音！全部人都看我，我只好假裝睡著！",
+                "欸你知道嗎？我昨天去買鹽酥雞，老闆問我要不要辣，我說微辣。結果回家一吃，那是地獄辣吧！我吃到嘴巴都腫成香腸嘴，眼淚鼻涕直流，還要一邊喝冰水一邊吃，真的有夠自虐的啦！",
+                "吼，我家那隻貓真的很機車欸。我昨天剛買一個超貴的貓窩給它，結果它看都不看一眼，直接跳進裝貓窩的那個破紙箱裡睡覺！我真的是花錢買寂寞欸，早知道我就給它紙箱就好了嘛！",
+                "跟你講一件超白痴的事。我早上出門太趕，穿了一黑一白的襪子去上班，重點是我到中午吃飯脫鞋子才發現！同事還問我是不是這季最新的流行穿搭，我只好硬著頭皮說是，笑死我了！",
+                "昨天我去健身房想說要練一下腹肌，結果做仰臥起坐的時候，放了一個超大聲的屁！旁邊那個教練還假裝沒聽到，繼續數「五、六、七...」，我自己都尷尬到想挖個地洞鑽進去，練完馬上光速逃跑！"
+            ]
+        }
+    }
+
+    # ==========================================
+    # STEP 1: 核心人設
+    # ==========================================
     if st.session_state.step == 1:
+        # (Step 1 邏輯維持不變)
         if target_role == "friend":
             st.subheader("STEP 1: 口頭禪炸彈 💣")
             ai_demo_text = "你覺得這個AI分身，跟我本尊有幾分像呢？"
@@ -90,26 +129,55 @@ def render(supabase, client, user_id, target_role, tier):
                     final = audio.merge_audio_clips(audio_bytes, ai_wav)
                     st.audio(final, format="audio/mp3")
                     st.success("設定已儲存！獲得 1 點共鳴值")
+
         if st.button("下一步 →"): st.session_state.step = 2; st.rerun()
 
-    # STEP 2-4
+    # ==========================================
+    # STEP 2-4: 情緒腳本 (隨機劇本版)
+    # ==========================================
     elif st.session_state.step in [2, 3, 4]:
-        scripts = {
-            2: ("刻錄「安慰語氣」", "欸，我知道你現在心裡一定超悶的啦，感覺是不是付出的心血都白費了？吼，沒關係啦，真的沒關係，讓我抱一下。你看你齁，把自己逼得那麼緊，早就累壞了。我們又不是機器人，偶爾搞砸一下是很正常的，誰沒有低潮的時候？失敗就失敗啊，它只是在提醒你：你該休息了。我們現在什麼都不要想，先找個地方坐下來。我會在這裡陪著你，等你準備好了，我們再一起慢慢來，好不好？你已經做得很好了。"),
-            3: ("刻錄「鼓勵語氣」", "哇塞！你真的決定要開始學那個東西了喔？超酷的啦！我知道一開始會很難、很煩，那介面看起來像外星文，沒錯啦！但你想想看，等你真的學會了，那個成就感會有多爆炸？不要去想還有多少東西沒學，就先專心搞定眼前這個小任務就好。每天進步一點點，慢慢累積起來就會是超巨大的力量！相信我，你的腦袋比你想像中靈光多了！衝啊！我等你做出第一個成品，我請客，隨便你點！"),
-            4: ("刻錄「輕鬆詼諧語氣」", "我跟你說，我昨天去圖書館 K 書，真的糗死了啦！我把水壺放在桌上，想說要裝一下文青對不對？結果我一個不小心，那個金屬水壺直接滾到地上，發出那種「匡啷匡啷匡啷」超大聲的聲音！整個圖書館的人，你知道嗎？全部都抬頭看著我！我當時真的超想假裝是睡著了，然後從地上爬起來！那個聲音迴盪了五秒鐘欸！搞得我後來待不下去，我就直接收東西逃走了！")
-        }
-        title, content = scripts.get(st.session_state.step, ("標題", "內容"))
-        st.subheader(f"STEP {st.session_state.step}: {title}")
-        st.markdown(f'<div class="script-box">{content}</div>', unsafe_allow_html=True)
-        st.warning("📱 手機若無法錄音，請用 Chrome/Safari 開啟。")
-        rec = st.audio_input("請朗讀上方文字", key=f"step{st.session_state.step}_rec")
+        
+        cfg = SCRIPTS_POOL[st.session_state.step]
+        
+        # 取出當前文章 (使用 Modulo 循環)
+        current_text = cfg["contents"][st.session_state.script_idx % len(cfg["contents"])]
+        
+        st.subheader(f"STEP {st.session_state.step}: {cfg['title']}")
+        st.markdown(f'<div class="script-box">{current_text}</div>', unsafe_allow_html=True)
+        
+        # --- 儲存狀態回放 ---
+        saved_audio = audio.get_audio_bytes(supabase, target_role, cfg["file"])
+        if saved_audio:
+            st.caption("🎵 目前已儲存的樣本 (若不滿意可重新錄製覆蓋)：")
+            st.audio(saved_audio, format="audio/mp3")
+
+        # --- 控制區 (警語 + 換文章按鈕) ---
+        c_warn, c_change = st.columns([7, 3], vertical_alignment="bottom")
+        with c_warn:
+            st.warning("📱 手機若無法錄音，請用 Chrome/Safari 開啟。")
+        with c_change:
+            # 換文章按鈕
+            if st.button("🔄 換文章 (增加相似度)", help="點擊切換下一篇隨機文章，多錄幾種版本可讓 AI 更聰明"):
+                st.session_state.script_idx += 1
+                st.rerun()
+
+        rec = st.audio_input("請朗讀上方文字", key=f"step{st.session_state.step}_rec_{st.session_state.script_idx}")
+        
         if rec:
-            if st.button("💾 上傳訓練"):
-                with st.spinner("訓練 Voice ID 中..."):
+            if st.button("💾 上傳並覆蓋舊檔"):
+                with st.spinner("訓練 Voice ID 並存檔中..."):
+                    ab = rec.read()
+                    # 1. 存入 Supabase (覆蓋舊檔)
+                    audio.upload_audio_file(supabase, target_role, ab, cfg["file"])
+                    
+                    # 2. 訓練 AI (疊加訓練)
+                    rec.seek(0)
                     audio.train_voice_sample(rec.read())
+                    
                     database.update_profile_stats(supabase, user_id, xp_delta=1, log_reason=f"Step{st.session_state.step}")
-                    st.success("已上傳 (+1 XP)")
+                    st.success("已更新訓練樣本！ (+1 XP)")
+                    st.rerun() 
+        
         col_prev, col_next = st.columns(2)
         with col_prev: 
             if st.button("← 上一步"): st.session_state.step -= 1; st.rerun()
@@ -117,8 +185,16 @@ def render(supabase, client, user_id, target_role, tier):
             btn_txt = "下一步 →" if st.session_state.step < 4 else "完成訓練 →"
             if st.button(btn_txt): st.session_state.step += 1; st.rerun()
 
-    # STEP 5
+    # ==========================================
+    # STEP 5: 完成與引導
+    # ==========================================
     elif st.session_state.step == 5:
         st.balloons()
-        st.markdown(f"""<div style='text-align:center; padding:30px; background-color:#262730; border:1px solid #4CAF50; border-radius:15px;'><h2 style='color:#4CAF50;'>🎉 恭喜！{role_zh} 的初級語氣模型已完成。</h2><p>您現在可以點擊上方的 <b>「🎁 生成邀請卡」</b> 分享給對方了。</p></div>""", unsafe_allow_html=True)
+        role_zh = ROLE_DISPLAY_NAMES.get(target_role, target_role)
+        st.markdown(f"""
+        <div style='text-align:center; padding:30px; background-color:#262730; border:1px solid #4CAF50; border-radius:15px;'>
+            <h2 style='color:#4CAF50;'>🎉 恭喜！{role_zh} 的初級語氣模型已完成。</h2>
+            <p>您現在可以點擊上方的 <b>「🎁 生成邀請卡」</b> 分享給對方了。</p>
+        </div>
+        """, unsafe_allow_html=True)
         if st.button("← 返回 Step 1 重錄"): st.session_state.step = 1; st.rerun()
