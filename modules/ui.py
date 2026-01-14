@@ -13,37 +13,20 @@ def load_css():
         hr { display: none !important; }
         .stElementContainer { margin-bottom: -10px !important; }
 
-        /* --- 2. Header 標題樣式 --- */
-        .brand-header {
-            display: flex; align-items: center; gap: 15px; margin-bottom: 20px;
-        }
-        .header-title {
-            font-size: 34px !important; font-weight: 700 !important; margin: 0 !important; line-height: 1.2 !important;
-        }
-        .header-subtitle {
-            font-size: 14px !important; color: #94A3B8 !important; font-weight: 400 !important; margin: 0 !important;
-        }
+        /* --- 2. Header --- */
+        .header-title { font-size: 34px !important; font-weight: 700 !important; margin-bottom: 5px !important; }
+        .header-subtitle { font-size: 16px !important; color: #B0B0B0 !important; font-weight: 400; }
+        .user-info-box { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; }
 
-        /* --- 3. 狀態列 (Status Bar) --- */
+        /* --- 3. 狀態列 (精簡 CSS) --- */
         .status-bar {
-            background: #1A1C24;
-            border: 1px solid #333;
-            padding: 12px 20px;
-            border-radius: 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
-            width: 100%;
+            background: #1A1C24; border: 1px solid #333; padding: 12px 20px;
+            border-radius: 8px; display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 25px; width: 100%; box-sizing: border-box;
         }
         .status-left { font-size: 16px; font-weight: bold; color: #FFF; }
         .status-right { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 15px; }
         
-        /* 狀態數值顏色 */
-        .val-energy { color: #FF4081; font-weight: bold; }
-        .val-xp { color: #FCD34D; font-weight: bold; }
-        .val-engine { color: #94A3B8; border-left: 1px solid #444; padding-left: 15px; }
-
         /* Tooltip */
         .tooltip-container { position: relative; display: inline-block; cursor: help; }
         .sim-score { color: #00E5FF; font-weight: bold; border-bottom: 1px dashed #00E5FF; }
@@ -55,13 +38,9 @@ def load_css():
         }
         .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
 
-        /* --- 4. 其他元件 --- */
-        .user-info-box { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; }
-        .user-email { font-size: 13px !important; color: #888 !important; margin-bottom: 5px; }
-        
+        /* --- 4. 其他 --- */
         input, textarea, .stSelectbox > div > div { background-color: #1F2229 !important; border: 1px solid #444 !important; color: white !important; }
         button[kind="primary"] { background-color: #FF4B4B !important; border: none; }
-        
         .question-card-active { background-color: #1A1C24; padding: 20px; border-radius: 12px; border: 2px solid #2196F3; text-align: center; margin-bottom: 20px; }
         .q-text { font-size: 20px; font-weight: bold; margin: 10px 0; }
         .history-card { background-color: #262730; padding: 12px; border-radius: 8px; margin-bottom: 8px; }
@@ -69,7 +48,6 @@ def load_css():
         .ai-bubble { background-color: #262730; padding: 15px; border-radius: 10px; border-left: 3px solid #FF4B4B; margin: 10px 0; }
 
         #MainMenu, footer {visibility: hidden;}
-        
         @media (max-width: 600px) {
             .status-bar { flex-direction: column; align-items: flex-start; gap: 10px; }
             .user-info-box { display: none; }
@@ -80,45 +58,29 @@ def load_css():
 def render_status_bar(tier, energy, xp, engine_type, similarity=0, sim_hint="", sim_gain=0, is_guest=False):
     tier_map = {"basic": "初級練習生", "intermediate": "中級守護者", "advanced": "高級刻錄師", "eternal": "永恆上鏈"}
     tier_name = tier_map.get(tier, tier)
-    
-    # 判斷引擎名稱
     engine_name = "Gemini Pro" if engine_type == "elevenlabs" else "Gemini Flash"
     
-    # 圖示
-    icon = "🚀"
-    if tier == "intermediate": icon = "🛡️"
+    icon = "🚀" if tier == "basic" else "🛡️"
     if tier == "advanced": icon = "🔥"
     if tier == "eternal": icon = "♾️"
 
-    # 左側文字
     left_content = f"👋 訪客" if is_guest else f"{icon} {tier_name}"
     
-    # 右側內容 (使用 f-string 注入變數，但 HTML 結構保持簡單)
-    # XP 部分
-    xp_section = ""
-    if not is_guest:
-        # Tooltip
+    # 右側內容：嚴格單行化
+    if is_guest:
+        # 訪客模式：移除引擎顯示，只留電量
+        right_html = f"<span style='color:#FF4081; font-weight:bold;'>❤️ 電量: {energy}</span>"
+    else:
+        # 會員模式：顯示相似度、XP、引擎 (全部擠在一行，無換行)
         tooltip = f"下一步：{sim_hint} (+{sim_gain}%)" if sim_gain > 0 else "已達目前等級上限"
-        xp_section = f"""
-        <div class="tooltip-container">
-            <span style="color:#BBB">相似度 <span class="sim-score">{similarity}%</span></span>
-            <span class="tooltip-text">{tooltip}</span>
-        </div>
-        &nbsp;&nbsp;
-        <span>⭐ XP <span class="val-xp">{xp}</span></span>
-        """
+        sim_part = f"""<div class="tooltip-container"><span style="color:#BBB">相似度 <span class="sim-score">{similarity}%</span></span><span class="tooltip-text">{tooltip}</span></div>"""
+        xp_part = f"""&nbsp;&nbsp;<span style="color:#FFD700">⭐ XP: {xp}</span>"""
+        engine_part = f"""&nbsp;&nbsp;<span style="color:#888; border-left:1px solid #444; padding-left:10px;">| {engine_name}</span>"""
+        
+        right_html = f"""<div style="display:flex; align-items:center;">{sim_part}{xp_part}<span style="margin-left:10px; color:#FF4081; font-weight:bold;">❤️ 電量: {energy}</span>{engine_part}</div>"""
 
-    # 組合最終 HTML
-    html = f"""
-    <div class="status-bar">
-        <div class="status-left">{left_content}</div>
-        <div class="status-right">
-            <span>❤️ 電量 <span class="val-energy">{energy}</span></span>
-            {xp_section}
-            <span class="val-engine">| {engine_name}</span>
-        </div>
-    </div>
-    """
+    # 最終渲染 (div 結構也單行化)
+    html = f"""<div class="status-bar"><div class="status-left">{left_content}</div><div class="status-right">{right_html}</div></div>"""
     
     st.markdown(html, unsafe_allow_html=True)
 
