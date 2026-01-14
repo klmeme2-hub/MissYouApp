@@ -12,12 +12,9 @@ except: pass
 
 def get_tier_config(tier):
     """
-    取得模型配置
-    修復：使用 -latest 後綴以確保抓到最新模型
+    【終極修復】：全部統一使用最穩定的 'gemini-pro'，解決 404 找不到模型的問題。
     """
-    if tier in ['intermediate', 'advanced', 'eternal']:
-        return "gemini-1.5-pro-latest", "高階思維"
-    return "gemini-1.5-flash-latest", "標準思維"
+    return "gemini-pro", "Gemini Pro"
 
 def transcribe_audio(audio_file):
     try:
@@ -31,22 +28,18 @@ def think_and_reply(tier, persona, memories, user_text, has_nick):
     prompt = f"【角色】{persona}\n【回憶】{memories}\n【規則】1.{nick_instr} 2.語氣自然。\n【用戶】{user_text}"
     
     try:
-        model = genai.GenerativeModel(model_name)
+        # 使用最穩定的 gemini-pro
+        model = genai.GenerativeModel("gemini-pro")
         return model.generate_content(prompt).text
     except Exception as e:
-        # Fallback 機制：如果 1.5 失敗，嘗試用舊版 Pro
-        try:
-            fallback_model = genai.GenerativeModel("gemini-pro")
-            return fallback_model.generate_content(prompt).text
-        except:
-            return f"思考暫時中斷 ({e})"
+        return f"思考暫時中斷 ({e})"
 
 def generate_crosstalk_script(question, correct_answer, user_answer, member_name):
     """
-    生成雙人相聲劇本 (JSON格式) - 修復模型名稱
+    生成雙人相聲劇本 (JSON格式) - 穩定版
     """
-    # 這裡指定使用 Flash 最新版，若失敗則自動切換
-    target_model = "gemini-1.5-flash-latest"
+    # 強制使用最穩定的 gemini-pro
+    model = genai.GenerativeModel("gemini-pro")
     
     prompt = f"""
     你現在是台灣最幽默的短劇編劇。請生成一段「3句話」的微型相聲腳本。
@@ -78,22 +71,10 @@ def generate_crosstalk_script(question, correct_answer, user_answer, member_name
     """
     
     try:
-        # 嘗試使用 Flash 1.5
-        model = genai.GenerativeModel(target_model)
         response = model.generate_content(prompt)
         raw_text = response.text
-    except:
-        try:
-            # 失敗則使用 Gemini Pro (1.0)
-            model = genai.GenerativeModel("gemini-pro")
-            response = model.generate_content(prompt)
-            raw_text = response.text
-        except Exception as e:
-            st.toast(f"AI 生成失敗: {e}", icon="❌")
-            return get_fallback_script(correct_answer, user_answer)
 
-    # JSON 清洗與解析
-    try:
+        # 清洗 JSON
         clean_text = raw_text.replace("```json", "").replace("```", "").strip()
         match = re.search(r'\[.*\]', clean_text, re.DOTALL)
         if match:
@@ -101,7 +82,9 @@ def generate_crosstalk_script(question, correct_answer, user_answer, member_name
             return json.loads(clean_json)
         else:
             return get_fallback_script(correct_answer, user_answer)
-    except:
+            
+    except Exception as e:
+        print(f"Script Gen Error: {e}")
         return get_fallback_script(correct_answer, user_answer)
 
 def get_fallback_script(correct_answer, user_answer):
@@ -109,5 +92,5 @@ def get_fallback_script(correct_answer, user_answer):
     return [
         {"speaker": "member", "text": f"這題答案明明就是 {correct_answer}！"},
         {"speaker": "guest", "text": f"我剛剛也是想講這個啦！"},
-        {"speaker": "member", "text": "少來，我明明聽到你說 {user_answer}！"}
+        {"speaker": "member", "text": "少來，我明明聽到你說別的！"}
     ]
