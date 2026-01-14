@@ -2,11 +2,10 @@ import streamlit as st
 import google.generativeai as genai
 from openai import OpenAI
 import json
-import re # 引入正則表達式
+import re
 
-# 初始化
+# 初始化 OpenAI (Whisper 用)
 try:
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 except: pass
 
@@ -22,9 +21,17 @@ def transcribe_audio(audio_file):
     except: return ""
 
 def think_and_reply(tier, persona, memories, user_text, has_nick):
+    # 配置 Google API
+    try:
+        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    except Exception as e:
+        return f"API Key 設定錯誤: {e}"
+
     model_name, _ = get_tier_config(tier)
+    
     nick_instr = "回應開頭不要包含暱稱。" if has_nick else "請在開頭自然呼喚對方的暱稱。"
     prompt = f"【角色】{persona}\n【回憶】{memories}\n【規則】1.{nick_instr} 2.語氣自然。\n【用戶】{user_text}"
+    
     try:
         model = genai.GenerativeModel(model_name)
         return model.generate_content(prompt).text
@@ -32,9 +39,37 @@ def think_and_reply(tier, persona, memories, user_text, has_nick):
 
 def generate_crosstalk_script(question, correct_answer, user_answer, member_name):
     """
-    生成雙人相聲劇本 (JSON格式) - 強力清洗版
+    生成雙人相聲劇本 (JSON格式) - 解除安全限制版
     """
+    # 1. 確保 API Key 載入
+    try:
+        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    except:
+        st.toast("❌ Google API Key 未設定", icon="⚠️")
+        return get_fallback_script(correct_answer, user_answer)
+
+    # 2. 設定模型與解除安全限制 (關鍵！)
     model = genai.GenerativeModel("gemini-1.5-flash")
+    
+    # 允許「騷擾」與「仇恨言論」類別 (為了讓 AI 可以互虧/吐槽)
+    safety_settings = [
+        {
+            "category": "HARM_CATEGORY_HARASSMENT",
+            "threshold": "BLOCK_NONE"
+        },
+        {
+            "category": "HARM_CATEGORY_HATE_SPEECH",
+            "threshold": "BLOCK_NONE"
+        },
+        {
+            "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            "threshold": "BLOCK_NONE"
+        },
+        {
+            "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+            "threshold": "BLOCK_NONE"
+        },
+    ]
     
     prompt = f"""
     你現在是台灣最幽默的短劇編劇。請生成一段「3句話」的微型相聲腳本。
@@ -66,24 +101,32 @@ def generate_crosstalk_script(question, correct_answer, user_answer, member_name
     """
     
     try:
-        response = model.generate_content(prompt)
+        # 呼叫 AI (帶入 safety_settings)
+        response = model.generate_content(prompt, safety_settings=safety_settings)
         raw_text = response.text
-        print(f"Gemini Raw: {raw_text}") # Debug用
-
+        
         # --- 暴力清洗 JSON ---
-        # 使用正則表達式，只抓取 [ 和 ] 中間的內容 (含括號)
-        match = re.search(r'\[.*\]', raw_text, re.DOTALL)
+        # 移除 markdown code block
+        clean_text = raw_text.replace("```json", "").replace("```", "").strip()
+        # 使用正則抓取 [ ... ]
+        match = re.search(r'\[.*\]', clean_text, re.DOTALL)
+        
         if match:
-            clean_json = match.group()
-            return json.loads(clean_json)
+            final_json = match.group()
+            return json.loads(final_json)
         else:
-            raise ValueError("No JSON found")
+            raise ValueError(f"JSON 解析失敗: {raw_text}")
         
     except Exception as e:
-        print(f"Script Gen Error: {e}")
-        # 備用劇本 (只有在真的掛掉時才用)
-        return [
-            {"speaker": "member", "text": f"這題答案是 {correct_answer} 啦！"},
-            {"speaker": "guest", "text": f"我剛剛也是想講這個！"},
-            {"speaker": "member", "text": "聽你在吹牛！"}
-        ]
+        # 這裡會把真實錯誤顯示在螢幕右下角，方便我們除錯
+        st.toast(f"AI 生成失敗: {str(e)}", icon="❌")
+        print(f"Brain Error: {e}")
+        return get_fallback_script(correct_answer, user_answer)
+
+def get_fallback_script(correct_answer, user_answer):
+    """備用劇本"""
+    return [
+        {"speaker": "member", "text": f"這題答案明明就是 {correct_answer}！"},
+        {"speaker": "guest", "text": f"我剛剛也是想講這個啦！"},
+        {"speaker": "member", "text": "少來，我明明聽到你說 {user_answer}！"}
+    ]
