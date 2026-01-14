@@ -4,7 +4,8 @@ requests
 supabase
 numpy
 pydub
-google-generativeai
+google-generativeai>=0.7.0
 extra-streamlit-components
 pandas
 plotly
+
