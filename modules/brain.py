@@ -4,15 +4,20 @@ from openai import OpenAI
 import json
 import re
 
-# 初始化 OpenAI (Whisper 用)
+# 初始化
 try:
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 except: pass
 
 def get_tier_config(tier):
+    """
+    取得模型配置
+    修復：使用 -latest 後綴以確保抓到最新模型
+    """
     if tier in ['intermediate', 'advanced', 'eternal']:
-        return "gemini-1.5-pro", "高階思維"
-    return "gemini-1.5-flash", "標準思維"
+        return "gemini-1.5-pro-latest", "高階思維"
+    return "gemini-1.5-flash-latest", "標準思維"
 
 def transcribe_audio(audio_file):
     try:
@@ -21,55 +26,27 @@ def transcribe_audio(audio_file):
     except: return ""
 
 def think_and_reply(tier, persona, memories, user_text, has_nick):
-    # 配置 Google API
-    try:
-        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    except Exception as e:
-        return f"API Key 設定錯誤: {e}"
-
     model_name, _ = get_tier_config(tier)
-    
     nick_instr = "回應開頭不要包含暱稱。" if has_nick else "請在開頭自然呼喚對方的暱稱。"
     prompt = f"【角色】{persona}\n【回憶】{memories}\n【規則】1.{nick_instr} 2.語氣自然。\n【用戶】{user_text}"
     
     try:
         model = genai.GenerativeModel(model_name)
         return model.generate_content(prompt).text
-    except Exception as e: return f"思考中斷: {e}"
+    except Exception as e:
+        # Fallback 機制：如果 1.5 失敗，嘗試用舊版 Pro
+        try:
+            fallback_model = genai.GenerativeModel("gemini-pro")
+            return fallback_model.generate_content(prompt).text
+        except:
+            return f"思考暫時中斷 ({e})"
 
 def generate_crosstalk_script(question, correct_answer, user_answer, member_name):
     """
-    生成雙人相聲劇本 (JSON格式) - 解除安全限制版
+    生成雙人相聲劇本 (JSON格式) - 修復模型名稱
     """
-    # 1. 確保 API Key 載入
-    try:
-        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    except:
-        st.toast("❌ Google API Key 未設定", icon="⚠️")
-        return get_fallback_script(correct_answer, user_answer)
-
-    # 2. 設定模型與解除安全限制 (關鍵！)
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    
-    # 允許「騷擾」與「仇恨言論」類別 (為了讓 AI 可以互虧/吐槽)
-    safety_settings = [
-        {
-            "category": "HARM_CATEGORY_HARASSMENT",
-            "threshold": "BLOCK_NONE"
-        },
-        {
-            "category": "HARM_CATEGORY_HATE_SPEECH",
-            "threshold": "BLOCK_NONE"
-        },
-        {
-            "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            "threshold": "BLOCK_NONE"
-        },
-        {
-            "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-            "threshold": "BLOCK_NONE"
-        },
-    ]
+    # 這裡指定使用 Flash 最新版，若失敗則自動切換
+    target_model = "gemini-1.5-flash-latest"
     
     prompt = f"""
     你現在是台灣最幽默的短劇編劇。請生成一段「3句話」的微型相聲腳本。
@@ -101,26 +78,30 @@ def generate_crosstalk_script(question, correct_answer, user_answer, member_name
     """
     
     try:
-        # 呼叫 AI (帶入 safety_settings)
-        response = model.generate_content(prompt, safety_settings=safety_settings)
+        # 嘗試使用 Flash 1.5
+        model = genai.GenerativeModel(target_model)
+        response = model.generate_content(prompt)
         raw_text = response.text
-        
-        # --- 暴力清洗 JSON ---
-        # 移除 markdown code block
+    except:
+        try:
+            # 失敗則使用 Gemini Pro (1.0)
+            model = genai.GenerativeModel("gemini-pro")
+            response = model.generate_content(prompt)
+            raw_text = response.text
+        except Exception as e:
+            st.toast(f"AI 生成失敗: {e}", icon="❌")
+            return get_fallback_script(correct_answer, user_answer)
+
+    # JSON 清洗與解析
+    try:
         clean_text = raw_text.replace("```json", "").replace("```", "").strip()
-        # 使用正則抓取 [ ... ]
         match = re.search(r'\[.*\]', clean_text, re.DOTALL)
-        
         if match:
-            final_json = match.group()
-            return json.loads(final_json)
+            clean_json = match.group()
+            return json.loads(clean_json)
         else:
-            raise ValueError(f"JSON 解析失敗: {raw_text}")
-        
-    except Exception as e:
-        # 這裡會把真實錯誤顯示在螢幕右下角，方便我們除錯
-        st.toast(f"AI 生成失敗: {str(e)}", icon="❌")
-        print(f"Brain Error: {e}")
+            return get_fallback_script(correct_answer, user_answer)
+    except:
         return get_fallback_script(correct_answer, user_answer)
 
 def get_fallback_script(correct_answer, user_answer):
