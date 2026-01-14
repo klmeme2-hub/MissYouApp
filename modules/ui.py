@@ -3,44 +3,28 @@ import streamlit as st
 def load_css():
     st.markdown("""
     <style>
-        /* --- 1. 全局基礎 (深色模式) --- */
-        .stApp {
-            background-color: #0E1117;
-            color: #FAFAFA;
+        /* --- 1. 全局基礎 --- */
+        .stApp { background-color: #050505; color: #FAFAFA; }
+        .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp label, .stApp div, .stApp span, .stApp li {
+            color: #FAFAFA !important; font-family: "Source Sans Pro", sans-serif;
         }
         
-        /* 強制所有文字顏色 */
-        h1, h2, h3, h4, h5, h6, p, label, span, div, li, button, .stMarkdown {
-            color: #FAFAFA !important;
-            font-family: "Source Sans Pro", sans-serif;
-        }
-        
-        /* 調整主容器寬度 */
-        .block-container {
-            padding-top: 1rem !important;
-            padding-bottom: 5rem !important;
-            max-width: 1000px !important;
-        }
-        
-        /* 隱藏預設分隔線 */
+        .block-container { padding-top: 1rem !important; padding-bottom: 5rem !important; max-width: 1000px !important; }
         hr { display: none !important; }
-        
-        /* 縮小元件間距 */
         .stElementContainer { margin-bottom: -10px !important; }
 
-        /* --- 2. Header --- */
+        /* --- 2. Header 標題樣式 --- */
+        .brand-header {
+            display: flex; align-items: center; gap: 15px; margin-bottom: 20px;
+        }
         .header-title {
-            font-size: 34px !important;
-            font-weight: 700 !important;
-            margin-bottom: 5px !important;
+            font-size: 34px !important; font-weight: 700 !important; margin: 0 !important; line-height: 1.2 !important;
         }
         .header-subtitle {
-            font-size: 16px !important;
-            color: #B0B0B0 !important;
-            font-weight: 400;
+            font-size: 14px !important; color: #94A3B8 !important; font-weight: 400 !important; margin: 0 !important;
         }
 
-        /* --- 3. 狀態列 (關鍵修復對象) --- */
+        /* --- 3. 狀態列 (Status Bar) --- */
         .status-bar {
             background: #1A1C24;
             border: 1px solid #333;
@@ -51,34 +35,31 @@ def load_css():
             align-items: center;
             margin-bottom: 25px;
             width: 100%;
-            box-sizing: border-box;
         }
+        .status-left { font-size: 16px; font-weight: bold; color: #FFF; }
+        .status-right { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 15px; }
         
-        /* 狀態文字容器 */
-        .status-text-left {
-            font-size: 16px;
-            font-weight: bold;
-            color: #FFF !important;
+        /* 狀態數值顏色 */
+        .val-energy { color: #FF4081; font-weight: bold; }
+        .val-xp { color: #FCD34D; font-weight: bold; }
+        .val-engine { color: #94A3B8; border-left: 1px solid #444; padding-left: 15px; }
+
+        /* Tooltip */
+        .tooltip-container { position: relative; display: inline-block; cursor: help; }
+        .sim-score { color: #00E5FF; font-weight: bold; border-bottom: 1px dashed #00E5FF; }
+        .tooltip-text {
+            visibility: hidden; width: 200px; background-color: #333; color: #fff; text-align: center;
+            border-radius: 6px; padding: 8px; position: absolute; z-index: 10;
+            top: 120%; left: 50%; margin-left: -100px; opacity: 0; transition: opacity 0.3s;
+            border: 1px solid #555; font-size: 12px !important;
         }
-        
-        .status-text-right {
-            font-size: 15px;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-        }
+        .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
 
         /* --- 4. 其他元件 --- */
         .user-info-box { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; }
-        .user-email { font-size: 13px !important; color: #888 !important; }
+        .user-email { font-size: 13px !important; color: #888 !important; margin-bottom: 5px; }
         
-        .step-wrapper { display: flex; justify-content: center; margin: 30px 0; }
-        .step-item { text-align: center; padding: 0 20px; position: relative; z-index: 2; }
-        .step-circle { width: 30px; height: 30px; border-radius: 50%; background: #1E1E1E; border: 2px solid #444; display: flex; align-items: center; justify-content: center; margin: 0 auto 5px; }
-        .step-active .step-circle { background: #FF4B4B; border-color: #FF4B4B; }
-        .step-line-bg { position: absolute; top: 15px; left: 10%; right: 10%; height: 2px; background: #333; z-index: 1; }
-
-        input, textarea, .stSelectbox > div > div { background-color: #1F2229 !important; border: 1px solid #444 !important; }
+        input, textarea, .stSelectbox > div > div { background-color: #1F2229 !important; border: 1px solid #444 !important; color: white !important; }
         button[kind="primary"] { background-color: #FF4B4B !important; border: none; }
         
         .question-card-active { background-color: #1A1C24; padding: 20px; border-radius: 12px; border: 2px solid #2196F3; text-align: center; margin-bottom: 20px; }
@@ -92,50 +73,54 @@ def load_css():
         @media (max-width: 600px) {
             .status-bar { flex-direction: column; align-items: flex-start; gap: 10px; }
             .user-info-box { display: none; }
-            .step-line-bg { display: none; }
         }
     </style>
     """, unsafe_allow_html=True)
 
-def render_stepper(current_step):
-    steps = ["喚名", "安慰", "鼓勵", "詼諧", "完成"]
-    items = ""
-    for i, name in enumerate(steps):
-        active = "step-active" if i + 1 == current_step else ""
-        items += f'<div class="step-item {active}"><div class="step-circle">{i+1}</div><div class="step-label">{name}</div></div>'
-    st.markdown(f'<div class="step-wrapper"><div class="step-line-bg"></div>{items}</div>', unsafe_allow_html=True)
-
-def render_status_bar(tier, energy, xp, engine_type, is_guest=False):
-    # 準備變數
+def render_status_bar(tier, energy, xp, engine_type, similarity=0, sim_hint="", sim_gain=0, is_guest=False):
     tier_map = {"basic": "初級練習生", "intermediate": "中級守護者", "advanced": "高級刻錄師", "eternal": "永恆上鏈"}
     tier_name = tier_map.get(tier, tier)
     
+    # 判斷引擎名稱
     engine_name = "Gemini Pro" if engine_type == "elevenlabs" else "Gemini Flash"
     
-    icon = "🚀" if tier == "basic" else "🛡️"
+    # 圖示
+    icon = "🚀"
+    if tier == "intermediate": icon = "🛡️"
     if tier == "advanced": icon = "🔥"
     if tier == "eternal": icon = "♾️"
 
     # 左側文字
-    left_text = f"👋 訪客" if is_guest else f"{icon} {tier_name}"
+    left_content = f"👋 訪客" if is_guest else f"{icon} {tier_name}"
     
-    # 右側文字 (拼接 HTML)
-    # 注意：這裡使用單引號包覆 style 屬性，避免與 f-string 衝突
-    xp_html = f"<span style='margin-left:15px; color:#FFD700;'>⭐ XP: {xp}</span>" if not is_guest else ""
-    
-    right_html = f"""
-        <span style='color:#FF4081; font-weight:bold;'>❤️ 電量: {energy}</span>
-        {xp_html}
-        <span style='margin-left:15px; color:#888;'>| {engine_name}</span>
+    # 右側內容 (使用 f-string 注入變數，但 HTML 結構保持簡單)
+    # XP 部分
+    xp_section = ""
+    if not is_guest:
+        # Tooltip
+        tooltip = f"下一步：{sim_hint} (+{sim_gain}%)" if sim_gain > 0 else "已達目前等級上限"
+        xp_section = f"""
+        <div class="tooltip-container">
+            <span style="color:#BBB">相似度 <span class="sim-score">{similarity}%</span></span>
+            <span class="tooltip-text">{tooltip}</span>
+        </div>
+        &nbsp;&nbsp;
+        <span>⭐ XP <span class="val-xp">{xp}</span></span>
+        """
+
+    # 組合最終 HTML
+    html = f"""
+    <div class="status-bar">
+        <div class="status-left">{left_content}</div>
+        <div class="status-right">
+            <span>❤️ 電量 <span class="val-energy">{energy}</span></span>
+            {xp_section}
+            <span class="val-engine">| {engine_name}</span>
+        </div>
+    </div>
     """
     
-    # 最終渲染 (確保結構完整)
-    st.markdown(f"""
-    <div class="status-bar">
-        <div class="status-text-left">{left_text}</div>
-        <div class="status-text-right">{right_html}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(html, unsafe_allow_html=True)
 
 def render_question_card(question, index, total): st.info(f"🎙️ **Q{index}/{total}: {question}**")
 def render_history_card(q, a): st.markdown(f"> **Q:** {q}\n> **A:** {a[:30]}...")
