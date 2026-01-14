@@ -11,9 +11,7 @@ try:
 except: pass
 
 def get_tier_config(tier):
-    """
-    【終極修復】：全部統一使用最穩定的 'gemini-pro'，解決 404 找不到模型的問題。
-    """
+    # 統一使用 gemini-pro 以求穩定
     return "gemini-pro", "Gemini Pro"
 
 def transcribe_audio(audio_file):
@@ -28,18 +26,24 @@ def think_and_reply(tier, persona, memories, user_text, has_nick):
     prompt = f"【角色】{persona}\n【回憶】{memories}\n【規則】1.{nick_instr} 2.語氣自然。\n【用戶】{user_text}"
     
     try:
-        # 使用最穩定的 gemini-pro
-        model = genai.GenerativeModel("gemini-pro")
+        model = genai.GenerativeModel(model_name)
         return model.generate_content(prompt).text
     except Exception as e:
         return f"思考暫時中斷 ({e})"
 
 def generate_crosstalk_script(question, correct_answer, user_answer, member_name):
     """
-    生成雙人相聲劇本 (JSON格式) - 穩定版
+    生成雙人相聲劇本 (JSON格式) - 解除安全限制 + 強力除錯版
     """
-    # 強制使用最穩定的 gemini-pro
     model = genai.GenerativeModel("gemini-pro")
+    
+    # 【關鍵 1】解除安全限制：允許 AI 吐槽、開玩笑
+    safety_settings = [
+        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+    ]
     
     prompt = f"""
     你現在是台灣最幽默的短劇編劇。請生成一段「3句話」的微型相聲腳本。
@@ -71,7 +75,13 @@ def generate_crosstalk_script(question, correct_answer, user_answer, member_name
     """
     
     try:
-        response = model.generate_content(prompt)
+        # 帶入 safety_settings
+        response = model.generate_content(prompt, safety_settings=safety_settings)
+        
+        # 檢查是否被阻擋
+        if not response.text:
+            raise ValueError(f"AI 回傳空值，可能被安全過濾。Feedback: {response.prompt_feedback}")
+
         raw_text = response.text
 
         # 清洗 JSON
@@ -81,10 +91,13 @@ def generate_crosstalk_script(question, correct_answer, user_answer, member_name
             clean_json = match.group()
             return json.loads(clean_json)
         else:
-            return get_fallback_script(correct_answer, user_answer)
+            raise ValueError("無法解析 JSON 格式")
             
     except Exception as e:
+        # 【關鍵 2】將錯誤顯示在螢幕上，而不是默默吞掉
         print(f"Script Gen Error: {e}")
+        st.toast(f"⚠️ AI 罷工了，錯誤原因: {e}", icon="🤖")
+        
         return get_fallback_script(correct_answer, user_answer)
 
 def get_fallback_script(correct_answer, user_answer):
@@ -92,5 +105,5 @@ def get_fallback_script(correct_answer, user_answer):
     return [
         {"speaker": "member", "text": f"這題答案明明就是 {correct_answer}！"},
         {"speaker": "guest", "text": f"我剛剛也是想講這個啦！"},
-        {"speaker": "member", "text": "少來，我明明聽到你說別的！"}
+        {"speaker": "member", "text": "少來，我明明聽到你說 {user_answer}！"}
     ]
