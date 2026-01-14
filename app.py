@@ -22,7 +22,15 @@ def load_questions():
     try:
         with open('questions.json', 'r', encoding='utf-8') as f: return json.load(f)
     except: return {}
+
+@st.cache_data
+def load_brain_teasers():
+    try:
+        with open('questions2.json', 'r', encoding='utf-8') as f: return json.load(f)
+    except: return {"brain_teasers": []}
+
 question_db = load_questions()
+teaser_db = load_brain_teasers()
 
 # 3. 狀態初始化
 if "user" not in st.session_state: st.session_state.user = None
@@ -50,8 +58,8 @@ if "token" in st.query_params and not st.session_state.user and not st.session_s
 # ==========================================
 
 if st.session_state.guest_data:
-    # A. 訪客模式
-    view_guest.render(supabase, client)
+    # A. 訪客模式 (傳入新題庫 teaser_db)
+    view_guest.render(supabase, client, teaser_db)
 
 elif not st.session_state.user:
     # B. 登入畫面
