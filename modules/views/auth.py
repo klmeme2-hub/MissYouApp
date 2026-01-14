@@ -3,16 +3,13 @@ import datetime
 from modules import auth, database
 
 def render(supabase, cookie_manager):
-    # 讀取 Cookie
     cookies = cookie_manager.get_all()
     saved_email = cookies.get("member_email", "")
     
-    # 左右分欄
     col1, col2 = st.columns([6, 4], gap="large")
     
-    # --- 左側：品牌形象區 (Brand) ---
+    # 左側：品牌形象區
     with col1:
-        # 【關鍵修正】這裡的 HTML 字串全部靠左對齊，不能有任何縮排
         html_content = """
 <div style="padding-top: 40px; padding-right: 20px;">
 <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
@@ -35,11 +32,10 @@ Voice remains, Soul echoes.
 """
         st.markdown(html_content, unsafe_allow_html=True)
 
-    # --- 右側：會員登入區 (Login) ---
+    # 右側：會員登入區
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
         
-        # 移除 border 讓它更乾淨
         with st.container():
             st.subheader("👤 會員登入")
             
@@ -67,21 +63,28 @@ Voice remains, Soul echoes.
                 if st.button("註冊", use_container_width=True):
                     res = auth.signup_user(supabase, se, sp)
                     if res and res.user:
+                        # 初始化新用戶資料
+                        database.get_user_profile(supabase, res.user.id)
+                        
+                        # 【關鍵修改】檢查是否有推薦人 (guest_data)
+                        if st.session_state.guest_data:
+                            referrer_id = st.session_state.guest_data['owner_id']
+                            # 給邀請人 +10 XP
+                            database.reward_referrer(supabase, referrer_id, se)
+                        
                         st.session_state.user = res
                         st.success("註冊成功！")
                         st.rerun()
                     else:
                         st.error("註冊失敗，Email 可能已被使用")
 
-            # 法律條款連結 (同樣靠左對齊)
-            footer_html = """
-<div style="margin-top: 20px; font-size: 12px; color: #666; text-align: center; border-top: 1px solid #333; padding-top: 15px;">
-點擊註冊即代表您同意 
-<a href="/服務條款" target="_self" style="color: #888; text-decoration: none;">服務條款</a> 與 
-<a href="/隱私權政策" target="_self" style="color: #888; text-decoration: none;">隱私權政策</a>
-<div style="margin-top: 20px; font-family: monospace; color: #555;">
-© 2026 EchoSoul. All rights reserved.
-</div>
-</div>
-"""
-            st.markdown(footer_html, unsafe_allow_html=True)
+            st.markdown("""
+            <div style="margin-top: 20px; font-size: 12px; color: #666; text-align: center; border-top: 1px solid #333; padding-top: 15px;">
+                點擊註冊即代表您同意 
+                <a href="/服務條款" target="_self" style="color: #888; text-decoration: none;">服務條款</a> 與 
+                <a href="/隱私權政策" target="_self" style="color: #888; text-decoration: none;">隱私權政策</a>
+                <div style="margin-top: 20px; font-family: monospace; color: #555;">
+                © 2026 EchoSoul. All rights reserved.
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
