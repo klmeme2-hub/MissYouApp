@@ -32,6 +32,8 @@ def load_brain_teasers():
 question_db = load_questions()
 teaser_db = load_brain_teasers()
 
+import random # 確保有引入 random
+
 # 3. 狀態初始化
 if "user" not in st.session_state: st.session_state.user = None
 if "guest_data" not in st.session_state: st.session_state.guest_data = None
@@ -40,6 +42,12 @@ if "show_invite" not in st.session_state: st.session_state.show_invite = False
 if "current_token" not in st.session_state: st.session_state.current_token = None
 if "call_status" not in st.session_state: st.session_state.call_status = "ringing"
 if "friend_stage" not in st.session_state: st.session_state.friend_stage = "listen"
+
+# 【修正】隨機選題 (不再固定為 0)
+if "teaser_idx" not in st.session_state: 
+    # 讀取題目數量，若讀不到預設為 0
+    q_len = len(question_db.get("brain_teasers", []))
+    st.session_state.teaser_idx = random.randint(0, max(0, q_len - 1))
 
 # 4. 網址參數攔截
 if "token" in st.query_params and not st.session_state.user and not st.session_state.guest_data:
@@ -68,3 +76,4 @@ elif not st.session_state.user:
 else:
     # C. 會員後台
     view_member.render(supabase, client, question_db)
+
