@@ -6,12 +6,12 @@ import re
 
 # 初始化
 try:
-    # 這裡保留 Google 設定，但下面的生成我們改用 OpenAI
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 except: pass
 
 def get_tier_config(tier):
+    # 這裡可以根據需求切換，目前李白測試用不到
     return "gemini-1.5-flash", "標準思維"
 
 def transcribe_audio(audio_file):
@@ -21,24 +21,19 @@ def transcribe_audio(audio_file):
     except: return ""
 
 def think_and_reply(tier, persona, memories, user_text, has_nick):
-    # 一般對話維持原樣 (若 Google 失敗可考慮也切換)
     try:
+        # 簡單對話用 Gemini
         model = genai.GenerativeModel("gemini-1.5-flash")
         return model.generate_content(f"{persona}\n{user_text}").text
     except:
-        # Fallback to OpenAI
-        res = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": f"{persona}\n{user_text}"}]
-        )
-        return res.choices[0].message.content
+        # Fallback
+        return "我正在思考..."
 
 def generate_crosstalk_script(question, correct_answer, user_answer, member_name):
     """
-    生成雙人相聲劇本 - 李白測試版 (使用 OpenAI GPT-4o-mini)
+    生成雙人相聲劇本 (OpenAI 李白測試版 - 強力格式修正)
     """
     
-    # 這裡我們強制改用 OpenAI，因為它最穩定，不會有 404 問題
     prompt = f"""
     請生成一段「2人接力背誦李白詩句」的對話腳本。
     
@@ -49,20 +44,19 @@ def generate_crosstalk_script(question, correct_answer, user_answer, member_name
     不管 {member_name} 出什麼題，也不管訪客回答什麼 ({user_answer})。
     請讓這兩人突然開始莫名其妙地接力背誦李白的《靜夜思》。
     
-    要求：
-    1. A 先唸第一句。
-    2. B 接第二句。
-    3. A 唸最後兩句並稱讚 B。
-    
-    【JSON 輸出格式範例】
-    [
-        {{"speaker": "member", "text": "哎呀別說了，床前明月光！"}},
-        {{"speaker": "guest", "text": "疑...疑是地上霜？"}},
-        {{"speaker": "member", "text": "舉頭望明月，低頭思故鄉。背得好啊！"}}
-    ]
+    【JSON 輸出格式要求】
+    請回傳一個 JSON 物件，包含一個鍵值 "dialogue"，內容是列表。範例：
+    {{
+        "dialogue": [
+            {{"speaker": "member", "text": "哎呀別說了，床前明月光！"}},
+            {{"speaker": "guest", "text": "疑...疑是地上霜？"}},
+            {{"speaker": "member", "text": "舉頭望明月，低頭思故鄉。背得好啊！"}}
+        ]
+    }}
     """
     
     try:
+        # 使用 OpenAI 生成
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
@@ -70,13 +64,36 @@ def generate_crosstalk_script(question, correct_answer, user_answer, member_name
         )
         
         content = response.choices[0].message.content
-        return json.loads(content).get('scripts', json.loads(content)) # 兼容某些回傳格式
+        data = json.loads(content)
+
+        # --- 關鍵修正：智慧解析 ---
+        # 情況 1: 直接回傳了列表 (List)
+        if isinstance(data, list):
+            return data
+            
+        # 情況 2: 回傳了字典 (Dict)，嘗試尋找內部的列表
+        if isinstance(data, dict):
+            # 常見的 key
+            for key in ['dialogue', 'script', 'conversation', 'lines']:
+                if key in data and isinstance(data[key], list):
+                    return data[key]
+            
+            # 如果找不到常見 key，就找第一個是 list 的 value
+            for value in data.values():
+                if isinstance(value, list):
+                    return value
+
+        # 如果都沒找到，拋出異常，使用備用劇本
+        raise ValueError("JSON 格式不符")
         
     except Exception as e:
-        print(f"OpenAI Script Error: {e}")
-        # 如果連 OpenAI 都失敗，回傳寫死的李白
-        return [
-            {"speaker": "member", "text": "測試模式：床前明月光。"},
-            {"speaker": "guest", "text": "疑是地上霜。"},
-            {"speaker": "member", "text": "舉頭望明月，低頭思故鄉。測試成功！"}
-        ]
+        print(f"Script Error: {e}")
+        return get_fallback_script()
+
+def get_fallback_script():
+    """絕對安全的備用劇本"""
+    return [
+        {"speaker": "member", "text": "測試模式啟動：床前明月光。"},
+        {"speaker": "guest", "text": "疑是地上霜。"},
+        {"speaker": "member", "text": "舉頭望明月，低頭思故鄉。測試成功！"}
+    ]
