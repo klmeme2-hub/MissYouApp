@@ -23,7 +23,6 @@ def render(supabase, client, teaser_db):
     if "teaser_idx" not in st.session_state: st.session_state.teaser_idx = 0
     if "guest_voice_id" not in st.session_state: st.session_state.guest_voice_id = None
     if "crosstalk_audio" not in st.session_state: st.session_state.crosstalk_audio = None
-    # 新增：題目階段控制 (answer:回答問題 -> retry:唸咒語 -> result:結果)
     if "teaser_stage" not in st.session_state: st.session_state.teaser_stage = "answer"
     
     teasers = teaser_db.get("brain_teasers", [])
@@ -51,7 +50,6 @@ def render(supabase, client, teaser_db):
             st.session_state.has_rated = True
             st.balloons()
             
-            # 【修改】優化語音文字與停頓
             thx_text = "謝啦！... 幫我等級加了1分。... 現在解鎖腦筋急轉彎模式！... 答對有彩蛋！！..."
             thx = audio.generate_speech(thx_text, tier)
             
@@ -77,35 +75,31 @@ def render(supabase, client, teaser_db):
                 if not teasers:
                     st.error("題庫讀取失敗")
                 else:
-                    # 隨機選題 (這裡用 idx 循環)
+                    # 循環出題
                     current_q = teasers[st.session_state.teaser_idx % len(teasers)]
                     
-                    # 渲染題目卡 (Hint 移入卡片內)
+                    # 渲染題目卡
                     ui.render_question_card(current_q['q'], st.session_state.teaser_idx + 1, len(teasers), hint=current_q['hint'])
 
                     # 階段一：播放題目 & 等待回答
                     if st.session_state.teaser_stage == "answer":
                         if f"q_played_{st.session_state.teaser_idx}" not in st.session_state:
-                            # 【修改】題目語音
                             q_text = f"...請問!...{current_q['q']}，猜猜看是什麼？"
                             q_audio = audio.generate_speech(q_text, tier)
                             st.audio(q_audio, format="audio/mp3", autoplay=True)
                             st.session_state[f"q_played_{st.session_state.teaser_idx}"] = True
                         
-                        # 提示文字
                         st.caption("不知道答案嗎? 請說: 天靈靈地靈靈...谷哥大神幫助我解題")
                         st.caption("知道答案嗎? 請說: 這題我會! 答案是 XXX 對不對?")
                         
                         ans_audio = st.audio_input("按住回答 (請說完整句子)", key=f"rec_ans_{st.session_state.teaser_idx}")
                         
                         if ans_audio:
-                            # 進入下一階段：假裝沒聽清楚
                             st.session_state.teaser_stage = "retry"
                             st.rerun()
 
-                    # 階段二：假裝沒聽清楚，引導唸咒語 (為了錄長一點的聲音)
+                    # 階段二：假裝沒聽清楚
                     elif st.session_state.teaser_stage == "retry":
-                        # 自動播放「沒聽清楚」
                         if "retry_played" not in st.session_state:
                             retry_text = "哎呀... 訊號不好，我沒聽清楚。... 麻煩你幫我唸這句測試一下：... 『我是宇宙無敵大聰明，這題難不倒我！』"
                             retry_audio = audio.generate_speech(retry_text, tier)
@@ -116,19 +110,13 @@ def render(supabase, client, teaser_db):
                         spell_audio = st.audio_input("唸出測試語句", key=f"rec_spell_{st.session_state.teaser_idx}")
                         
                         if spell_audio:
-                            # 進入生成階段
                             with st.spinner("🔄 正在分析聲紋特徵... 生成雙人相聲中... (需約 10 秒)"):
-                                # 1. 轉文字 (取得訪客回答內容，其實這裡主要用第二段錄音來複製聲音)
-                                # 我們假設第一段錄音的內容在邏輯上不重要，重點是第二段的高品質聲音
-                                
-                                # 2. 複製聲音 (使用第二段錄音)
+                                # 2. 複製聲音
                                 if not st.session_state.guest_voice_id:
                                     spell_audio.seek(0)
                                     st.session_state.guest_voice_id = audio.clone_guest_voice(spell_audio.read())
                                 
-                                # 3. 生成劇本 (使用題目)
-                                # 這裡假設用戶答對或答錯，我們隨機生成一個有趣的對話
-                                # 為了效果，我們先假設用戶是來亂的，或者隨機給個情境
+                                # 3. 生成劇本
                                 script = brain.generate_crosstalk_script(current_q['q'], "我是大聰明", display_name)
                                 
                                 # 4. 生成語音
@@ -142,13 +130,11 @@ def render(supabase, client, teaser_db):
                                 st.session_state.crosstalk_audio = full_audio
                                 database.update_profile_stats(supabase, owner_id, xp_delta=1)
                                 
-                                # 停頓 3 秒 (模擬處理感)
                                 time.sleep(3)
-                                
                                 st.session_state.teaser_stage = "result"
                                 st.rerun()
 
-                    # 階段三：播放結果
+                    # 階段三：播放結果 (這裡做了按鈕修改)
                     elif st.session_state.teaser_stage == "result":
                         if st.session_state.crosstalk_audio:
                             st.markdown("### 🎭 AI 脫口秀：阿強 vs 你")
@@ -156,20 +142,12 @@ def render(supabase, client, teaser_db):
                             
                             st.warning("⚠️ 您的 AI 聲紋 ID 已暫時生成 (離開即銷毀)")
                             
-                            c1, c2 = st.columns(2)
-                            with c1:
-                                if st.button("🔥 註冊綁定 (保留分身)"):
-                                    if st.session_state.guest_voice_id: audio.delete_voice(st.session_state.guest_voice_id)
-                                    st.session_state.guest_data = None
-                                    st.rerun()
-                            with c2:
-                                if st.button("下一題 ➡"):
-                                    st.session_state.crosstalk_audio = None
-                                    st.session_state.teaser_idx += 1
-                                    st.session_state.teaser_stage = "answer" # 重置回第一階段
-                                    if "retry_played" in st.session_state: del st.session_state["retry_played"]
-                                    if f"q_played_{st.session_state.teaser_idx}" in st.session_state: del st.session_state[f"q_played_{st.session_state.teaser_idx}"]
-                                    st.rerun()
+                            # 【修改】按鈕更新 & 移除下一題
+                            # 使用 use_container_width 讓按鈕大一點
+                            if st.button(f"🔥 註冊綁定 (幫{display_name} +10 XP)", type="primary", use_container_width=True):
+                                if st.session_state.guest_voice_id: audio.delete_voice(st.session_state.guest_voice_id)
+                                st.session_state.guest_data = None
+                                st.rerun()
 
             with tab_parrot:
                 parrot = st.toggle("🦜 九官鳥模式", value=True)
@@ -183,9 +161,10 @@ def render(supabase, client, teaser_db):
 
     # 底部按鈕
     st.divider()
-    if role_key == "friend":
-        st.info("😲 覺得像嗎？註冊免費獲得您的 AI 分身 👇")
-        if st.button("👉 點此註冊"):
-            st.session_state.guest_data = None
-            st.query_params.clear()
-            st.rerun()
+    if st.button("🚪 離開"):
+        if st.session_state.guest_voice_id: audio.delete_voice(st.session_state.guest_voice_id)
+        st.session_state.guest_data = None
+        st.query_params.clear()
+        st.rerun()
+    
+    # 【修改】移除了底部的「註冊免費獲得」區塊，因為上面已經有大按鈕了
