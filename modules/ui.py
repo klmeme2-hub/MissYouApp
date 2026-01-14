@@ -143,40 +143,30 @@ def load_css():
 # 關鍵修復：Render Status Bar (解決代碼外洩問題)
 # 使用 f-string 拼接成單行，避免 Markdown 縮排錯誤
 # --------------------------------------------------------
-def render_status_bar(tier, energy, xp, engine_type, similarity, sim_hint, sim_gain, is_guest=False):
+def render_status_bar(tier, energy, xp, engine_type, is_guest=False):
     tier_map = {"basic": "初級練習生", "intermediate": "中級守護者", "advanced": "高級刻錄師", "eternal": "永恆上鏈"}
     tier_name = tier_map.get(tier, tier)
-    
-    engine_name = "Gemini Pro" if engine_type == "elevenlabs" else "Gemini Flash"
-    icon = "🌱" if tier == "basic" else "🛡️"
+    engine = "Gemini Pro" if engine_type == "elevenlabs" else "Gemini Flash"
+    icon = "🚀" if tier == "basic" else "🛡️"
     if tier == "advanced": icon = "🔥"
-    if tier == "eternal": icon = "♾️"
-
-    user_label = "👋 訪客" if is_guest else f"{icon} {tier_name}"
     
-    # 相似度 Tooltip HTML (單行化)
-    if sim_gain > 0:
-        tooltip_txt = f"下一步：{sim_hint} (+{sim_gain}%)"
-    else:
-        tooltip_txt = "已達目前等級上限"
+    left = f"👋 訪客" if is_guest else f"{icon} {tier_name}"
     
-    sim_html = f"""<div class="tooltip-container"><span class="status-item">聲音相似度 <span class="sim-score">{similarity}%</span></span><span class="tooltip-text">{tooltip_txt}</span></div>"""
+    # 關鍵修正：將 XP 的 HTML 拼接邏輯簡化，避免 f-string 混亂
+    xp_part = ""
+    if not is_guest:
+        xp_part = f'<span style="margin-left:15px">⭐ XP: <span style="color:#FFD700">{xp}</span></span>'
     
-    # XP HTML
-    xp_html = f"""<span class="status-item">⭐ XP <span class="status-value">{xp}</span></span>""" if not is_guest else ''
-    
-    # 最終組合 (全部擠在一行字串中，雖然醜但能保證 Streamlit 渲染正確)
-    final_html = f"""
-    <div class="status-bar">
-        <div style="font-weight:600; font-size:16px; color:#FFF;">{user_label}</div>
-        <div style="display:flex; align-items:center;">
-            {sim_html}
-            <span class="status-item">❤️ 電量 <span class="status-value" style="color:#F472B6!important;">{energy}</span></span>
-            {xp_html}
-            <span class="status-item" style="border-left:1px solid #444; padding-left:15px; color:#94A3B8!important;">{engine_name}</span>
+    st.markdown(f"""
+    <div style="background:#1A1C24; padding:12px 20px; border-radius:8px; display:flex; justify-content:space-between; border:1px solid #333; margin-bottom:20px;">
+        <div style="color:white; font-weight:bold;">{left}</div>
+        <div>
+            <span style="color:#FF4081; font-weight:bold;">❤️ 電量: {energy}</span>
+            {xp_part}
+            <span style="margin-left:15px; color:#888;">| {engine}</span>
         </div>
     </div>
-    """
+    """, unsafe_allow_html=True)
     
     st.markdown(final_html, unsafe_allow_html=True)
 
