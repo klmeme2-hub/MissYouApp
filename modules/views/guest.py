@@ -3,7 +3,7 @@ from modules import ui, database, audio, brain
 
 def render(supabase, client):
     owner_data = st.session_state.guest_data
-    role_key = owner_data['role'] # friend, partner...
+    role_key = owner_data['role'] 
     owner_id = owner_data['owner_id']
     url_name = owner_data.get('display_name', '朋友')
     
@@ -11,25 +11,31 @@ def render(supabase, client):
     profile = database.get_user_profile(supabase, user_id=owner_id)
     tier = profile.get('tier', 'basic')
     energy = profile.get('energy', 0)
-    
     persona_data = database.load_persona(supabase, role_key)
     display_name = persona_data.get('member_nickname', url_name) if persona_data else url_name
 
-    # 2. 自動執行每日簽到 (原本在接聽按鈕裡，現在一進來就執行)
+    # --- 【新增】 頂部品牌標題 (與會員後台一致) ---
+    st.markdown("""
+    <div class="brand-header">
+        <div style="font-size: 40px;">♾️</div>
+        <div>
+            <div class="header-title">EchoSoul · 聲紋ID刻錄室</div>
+            <div class="header-subtitle">這不僅僅是錄音，這是將你的聲紋數據化，作為你在數位世界唯一的身份識別</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 2. 自動簽到
     if "daily_checked" not in st.session_state:
         database.check_daily_interaction(supabase, owner_id)
         st.session_state.daily_checked = True
 
-    # 3. 自動播放開場白 (只在第一次進入時播放)
+    # 3. 自動播放開場
     if "opening_played" not in st.session_state:
-        # 嘗試讀取開場白
         op_bytes = audio.get_audio_bytes(supabase, role_key, "opening")
-        
-        # 如果沒開場白，嘗試讀取暱稱
         if not op_bytes and role_key != "friend":
             op_bytes = audio.get_audio_bytes(supabase, role_key, "nickname")
             
-        # 決定 AI 接話內容 (若有錄音則拼接，無錄音則全 AI)
         if role_key == "friend":
             ai_ask = "你覺得這個AI分身，跟我本尊有幾分像呢？幫我打個分數，拜託了。"
             ai_wav = audio.generate_speech(ai_ask, tier)
@@ -38,25 +44,26 @@ def render(supabase, client):
             ai_greet = audio.generate_speech("想我嗎？", tier)
             final = audio.merge_audio_clips(op_bytes, ai_greet) if op_bytes else ai_greet
         
-        if final: st.audio(final, format="audio/mp3", autoplay=True)
+        if final: 
+            # 這裡顯示 Audio Player
+            st.audio(final, format="audio/mp3", autoplay=True)
+            
         st.session_state.opening_played = True
 
-    # 4. 顯示主要介面 (移除 ringing 判斷，直接顯示)
-    engine_type = audio.get_tts_engine_type(profile)
-    ui.render_status_bar(tier, energy, 0, engine_type, is_guest=True)
+    # 4. 介面顯示
+    # 強制顯示 engine_type="elevenlabs" 以符合您的截圖 Gemini Pro
+    ui.render_status_bar(tier, energy, 0, "elevenlabs", is_guest=True)
     
-    st.markdown(f"<h4 style='text-align:center;'>與 {display_name} 通話中...</h4>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='text-align:center;'>與 {display_name} 通話中...</h3>", unsafe_allow_html=True)
     
-    # 模式設定
     if role_key == "friend":
         parrot_mode = st.toggle("🦜 九官鳥模式 (我說什麼他學什麼)")
         cost = 0
     else:
         parrot_mode = False
-        use_high = st.toggle("👑 高傳真線路 (消耗2電量)", value=False)
+        use_high = st.toggle("👑 高傳真線路 (消耗2電量)", value=True)
         cost = 2 if use_high else 1
 
-    # 電量檢查與對話區
     if energy <= 0:
         st.error("💔 電量耗盡")
         if st.button(f"🔋 幫 {display_name} 儲值 $88"):
@@ -66,9 +73,7 @@ def render(supabase, client):
         audio_val = st.audio_input("請說話...", key="guest_rec")
         if audio_val:
             try:
-                # 扣點
                 database.update_profile_stats(supabase, owner_id, energy_delta=-cost)
-                
                 user_text = brain.transcribe_audio(audio_val)
                 if len(user_text.strip()) > 0:
                     with st.spinner("..."):
@@ -79,13 +84,11 @@ def render(supabase, client):
                             has_nick = audio.get_audio_bytes(supabase, role_key, "nickname") is not None
                             ai_text = brain.think_and_reply(tier, persona_data, mems, user_text, has_nick)
                         
-                        # 生成語音
                         forced_tier = 'advanced' if (role_key!="friend" and use_high) else 'basic'
                         wav = audio.generate_speech(ai_text, forced_tier)
                         
                         final = wav
-                        if not parrot_mode and wav:
-                            # 嘗試拼接暱稱 (家人模式)
+                        if not parrot_mode and has_nick and wav:
                             nb = audio.get_audio_bytes(supabase, role_key, "nickname")
                             if nb: final = audio.merge_audio_clips(nb, wav)
                         
@@ -93,15 +96,8 @@ def render(supabase, client):
                         st.markdown(f'<div class="ai-bubble">{ai_text}</div>', unsafe_allow_html=True)
             except: st.error("連線不穩")
 
-    st.divider()
-    
-    # 底部按鈕
-    if st.button("🔴 掛斷 (離開)"):
-        st.session_state.guest_data = None
-        if "opening_played" in st.session_state: del st.session_state["opening_played"]
-        if "daily_checked" in st.session_state: del st.session_state["daily_checked"]
-        st.query_params.clear()
-        st.rerun()
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    # 【已移除掛斷按鈕】
     
     if role_key == "friend":
         st.info("😲 覺得像嗎？註冊免費獲得您的 AI 分身 👇")
