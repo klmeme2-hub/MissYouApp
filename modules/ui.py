@@ -3,111 +3,137 @@ import streamlit as st
 def load_css():
     st.markdown("""
     <style>
-        /* --- 1. 全局設定 --- */
-        .stApp, p, h1, h2, h3, h4, h5, h6, label, span, div, li { 
-            color: #FAFAFA !important; 
+        /* --- 1. 全局基礎 (深色模式) --- */
+        .stApp {
+            background-color: #0E1117;
+            color: #FAFAFA;
         }
         
-        /* 調整主區塊寬度 */
+        /* 強制所有文字顏色 */
+        h1, h2, h3, h4, h5, h6, p, label, span, div, li, button, .stMarkdown {
+            color: #FAFAFA !important;
+            font-family: "Source Sans Pro", sans-serif;
+        }
+        
+        /* 調整主容器寬度 */
         .block-container {
             padding-top: 1rem !important;
-            padding-bottom: 2rem !important;
+            padding-bottom: 5rem !important;
             max-width: 1000px !important;
         }
         
+        /* 隱藏預設分隔線 */
         hr { display: none !important; }
-        .stElementContainer { margin-bottom: -15px !important; }
-        div[data-testid="stButton"], div[data-testid="stSelectbox"] {
-            margin-bottom: 5px !important;
-        }
+        
+        /* 縮小元件間距 */
+        .stElementContainer { margin-bottom: -10px !important; }
 
         /* --- 2. Header --- */
-        .header-title h1 {
-            font-size: 36px !important;
+        .header-title {
+            font-size: 34px !important;
+            font-weight: 700 !important;
             margin-bottom: 5px !important;
-            padding: 0 !important;
-            text-shadow: 0 0 15px rgba(124, 77, 255, 0.6);
-            line-height: 1.1;
         }
         .header-subtitle {
             font-size: 16px !important;
-            color: #BBB !important;
-            margin-top: 0px !important;
-            margin-bottom: 15px !important;
+            color: #B0B0B0 !important;
             font-weight: 400;
         }
-        
-        .user-info-box {
-            display: flex; flex-direction: column; align-items: flex-end; justify-content: center; height: 100%; margin-top: 10px;
-        }
-        .user-email { font-size: 14px !important; color: #888 !important; margin-bottom: 5px; }
 
-        /* --- 3. 狀態列 (Status Bar) --- */
+        /* --- 3. 狀態列 (關鍵修復對象) --- */
         .status-bar {
             background: #1A1C24;
             border: 1px solid #333;
             padding: 12px 20px;
             border-radius: 8px;
-            display: flex; justify-content: space-between; align-items: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 25px;
+            width: 100%;
+            box-sizing: border-box;
         }
-        .status-text { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 15px; }
         
-        /* 相似度 Tooltip */
-        .tooltip-container { position: relative; display: inline-block; cursor: help; }
-        .sim-score { color: #00E5FF; font-weight: bold; border-bottom: 1px dashed #00E5FF; }
-        .tooltip-text {
-            visibility: hidden; width: 200px; background-color: #333; color: #fff; text-align: center;
-            border-radius: 6px; padding: 8px; position: absolute; z-index: 10;
-            top: 120%; left: 50%; margin-left: -100px; opacity: 0; transition: opacity 0.3s;
-            border: 1px solid #555; box-shadow: 0 4px 10px rgba(0,0,0,0.5); font-size: 12px !important;
+        /* 狀態文字容器 */
+        .status-text-left {
+            font-size: 16px;
+            font-weight: bold;
+            color: #FFF !important;
         }
-        .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
+        
+        .status-text-right {
+            font-size: 15px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
 
-        /* --- 4. 輸入框與按鈕 --- */
-        .stSelectbox > div > div, .stTextInput > div > div > input {
-            background-color: #1F2229 !important; border: 1px solid #444 !important; color: white !important;
-        }
-        button[kind="primary"] {
-            background-color: #FF4B4B !important; color: white !important; border: none;
-        }
+        /* --- 4. 其他元件 --- */
+        .user-info-box { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; }
+        .user-email { font-size: 13px !important; color: #888 !important; }
         
-        /* 手機適配 */
+        .step-wrapper { display: flex; justify-content: center; margin: 30px 0; }
+        .step-item { text-align: center; padding: 0 20px; position: relative; z-index: 2; }
+        .step-circle { width: 30px; height: 30px; border-radius: 50%; background: #1E1E1E; border: 2px solid #444; display: flex; align-items: center; justify-content: center; margin: 0 auto 5px; }
+        .step-active .step-circle { background: #FF4B4B; border-color: #FF4B4B; }
+        .step-line-bg { position: absolute; top: 15px; left: 10%; right: 10%; height: 2px; background: #333; z-index: 1; }
+
+        input, textarea, .stSelectbox > div > div { background-color: #1F2229 !important; border: 1px solid #444 !important; }
+        button[kind="primary"] { background-color: #FF4B4B !important; border: none; }
+        
+        .question-card-active { background-color: #1A1C24; padding: 20px; border-radius: 12px; border: 2px solid #2196F3; text-align: center; margin-bottom: 20px; }
+        .q-text { font-size: 20px; font-weight: bold; margin: 10px 0; }
+        .history-card { background-color: #262730; padding: 12px; border-radius: 8px; margin-bottom: 8px; }
+        .dashboard-card { background-color: #1A1C24; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 10px; }
+        .ai-bubble { background-color: #262730; padding: 15px; border-radius: 10px; border-left: 3px solid #FF4B4B; margin: 10px 0; }
+
+        #MainMenu, footer {visibility: hidden;}
+        
         @media (max-width: 600px) {
+            .status-bar { flex-direction: column; align-items: flex-start; gap: 10px; }
             .user-info-box { display: none; }
-            .status-bar { flex-direction: column; align-items: flex-start; gap: 8px; padding: 15px; }
-            .tooltip-container .tooltip-text { left: 0; margin-left: 0; }
+            .step-line-bg { display: none; }
         }
     </style>
     """, unsafe_allow_html=True)
 
-# 為了配合 member.py 的呼叫，這裡增加了 similarity 相關參數的預設值
-def render_status_bar(tier, energy, xp, engine_type, similarity=0, sim_hint="", sim_gain=0, is_guest=False):
+def render_stepper(current_step):
+    steps = ["喚名", "安慰", "鼓勵", "詼諧", "完成"]
+    items = ""
+    for i, name in enumerate(steps):
+        active = "step-active" if i + 1 == current_step else ""
+        items += f'<div class="step-item {active}"><div class="step-circle">{i+1}</div><div class="step-label">{name}</div></div>'
+    st.markdown(f'<div class="step-wrapper"><div class="step-line-bg"></div>{items}</div>', unsafe_allow_html=True)
+
+def render_status_bar(tier, energy, xp, engine_type, is_guest=False):
+    # 準備變數
     tier_map = {"basic": "初級練習生", "intermediate": "中級守護者", "advanced": "高級刻錄師", "eternal": "永恆上鏈"}
     tier_name = tier_map.get(tier, tier)
-    engine = "Gemini Pro" if engine_type == "elevenlabs" else "Gemini Flash"
+    
+    engine_name = "Gemini Pro" if engine_type == "elevenlabs" else "Gemini Flash"
+    
     icon = "🚀" if tier == "basic" else "🛡️"
     if tier == "advanced": icon = "🔥"
-    
-    left = f"👋 訪客" if is_guest else f"{icon} {tier_name}"
-    
-    # 處理相似度顯示 (只在會員模式顯示)
-    sim_html = ""
-    if not is_guest:
-        tooltip = f"下一步：{sim_hint} (+{sim_gain}%)" if sim_gain > 0 else "已達目前等級上限"
-        sim_html = f"""<div class="tooltip-container"><span style="color:#BBB">聲音相似度 <span class="sim-score">{similarity}%</span></span><span class="tooltip-text">{tooltip}</span></div>"""
+    if tier == "eternal": icon = "♾️"
 
-    xp_html = f'<span style="margin-left:15px; color:#FFD700">⭐ XP: {xp}</span>' if not is_guest else ''
+    # 左側文字
+    left_text = f"👋 訪客" if is_guest else f"{icon} {tier_name}"
     
+    # 右側文字 (拼接 HTML)
+    # 注意：這裡使用單引號包覆 style 屬性，避免與 f-string 衝突
+    xp_html = f"<span style='margin-left:15px; color:#FFD700;'>⭐ XP: {xp}</span>" if not is_guest else ""
+    
+    right_html = f"""
+        <span style='color:#FF4081; font-weight:bold;'>❤️ 電量: {energy}</span>
+        {xp_html}
+        <span style='margin-left:15px; color:#888;'>| {engine_name}</span>
+    """
+    
+    # 最終渲染 (確保結構完整)
     st.markdown(f"""
     <div class="status-bar">
-        <div class="status-text" style="color:#FFF !important; font-weight:bold;">{left}</div>
-        <div class="status-text">
-            {sim_html}
-            <span style="margin-left:15px; color:#FF4081; font-weight:bold;">❤️ 電量: {energy}</span>
-            {xp_html}
-            <span style="margin-left:15px; color:#888;">| {engine}</span>
-        </div>
+        <div class="status-text-left">{left_text}</div>
+        <div class="status-text-right">{right_html}</div>
     </div>
     """, unsafe_allow_html=True)
 
