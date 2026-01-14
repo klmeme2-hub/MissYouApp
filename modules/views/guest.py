@@ -21,7 +21,6 @@ def render(supabase, client, teaser_db):
     # 狀態管理
     if "has_rated" not in st.session_state: st.session_state.has_rated = False
     if "teaser_idx" not in st.session_state: 
-        # 防止 app.py 沒初始化到的保險措施
         try: q_len = len(teaser_db.get("brain_teasers", []))
         except: q_len = 1
         st.session_state.teaser_idx = random.randint(0, max(0, q_len - 1))
@@ -29,8 +28,6 @@ def render(supabase, client, teaser_db):
     if "guest_voice_id" not in st.session_state: st.session_state.guest_voice_id = None
     if "crosstalk_audio" not in st.session_state: st.session_state.crosstalk_audio = None
     if "teaser_stage" not in st.session_state: st.session_state.teaser_stage = "answer"
-    
-    # 新增：暫存第一次回答的文字內容
     if "first_answer_text" not in st.session_state: st.session_state.first_answer_text = ""
     
     teasers = teaser_db.get("brain_teasers", [])
@@ -57,7 +54,6 @@ def render(supabase, client, teaser_db):
             database.submit_feedback(supabase, owner_id, rate, "朋友評分")
             st.session_state.has_rated = True
             st.balloons()
-            
             thx_text = "謝啦！... 幫我等級加了1分。... 現在解鎖腦筋急轉彎模式！... 答對有彩蛋！！..."
             thx = audio.generate_speech(thx_text, tier)
             st.audio(thx, format="audio/mp3", autoplay=True)
@@ -69,10 +65,11 @@ def render(supabase, client, teaser_db):
         ui.render_status_bar(tier, energy, 0, "elevenlabs", is_guest=True, member_name=display_name)
         
         if role_key != "friend":
+            # 家人模式 (維持原樣)
             st.markdown(f"<h3 style='text-align:center;'>與 {display_name} 通話中...</h3>", unsafe_allow_html=True)
-            # (家人模式邏輯省略)
-            st.info("家人模式對話區")
+            pass
         else:
+            # 朋友模式
             tab_teaser, tab_parrot = st.tabs(["🧠 腦力激盪", "🦜 九官鳥"])
             
             with tab_teaser:
@@ -82,7 +79,7 @@ def render(supabase, client, teaser_db):
                     current_q = teasers[st.session_state.teaser_idx % len(teasers)]
                     ui.render_question_card(current_q['q'], st.session_state.teaser_idx + 1, len(teasers), hint=current_q['hint'])
 
-                    # 階段一：播放題目 & 等待回答
+                    # 階段一：播放題目
                     if st.session_state.teaser_stage == "answer":
                         if f"q_played_{st.session_state.teaser_idx}" not in st.session_state:
                             q_text = f"...請問!...{current_q['q']}，猜猜看是什麼？"
@@ -90,24 +87,21 @@ def render(supabase, client, teaser_db):
                             st.audio(q_audio, format="audio/mp3", autoplay=True)
                             st.session_state[f"q_played_{st.session_state.teaser_idx}"] = True
                         
-                        # 【更新】新的引導文案
                         st.info("💡 **不知道答案嗎?** 請說: 「天靈靈地靈靈...谷哥大神幫助我解題」")
                         st.info("💡 **知道答案嗎?** 請說: 「這題我會! 答案是 XXX 對不對?」")
                         
                         ans_audio = st.audio_input("按住回答 (請說完整句子)", key=f"rec_ans_{st.session_state.teaser_idx}")
                         
                         if ans_audio:
-                            # 轉文字並暫存
                             user_text = brain.transcribe_audio(ans_audio)
                             if user_text:
-                                st.session_state.first_answer_text = user_text # 存下來給 AI 用
+                                st.session_state.first_answer_text = user_text
                             else:
                                 st.session_state.first_answer_text = "(聽不清楚)"
-                                
                             st.session_state.teaser_stage = "retry"
                             st.rerun()
 
-                    # 階段二：假裝沒聽清楚，引導唸麥克風測試
+                    # 階段二：聲紋校正
                     elif st.session_state.teaser_stage == "retry":
                         if "retry_played" not in st.session_state:
                             retry_text = "哎呀... 訊號不好，我沒聽清楚。... 麻煩你幫我唸這句測試一下... "
@@ -115,22 +109,19 @@ def render(supabase, client, teaser_db):
                             st.audio(retry_audio, format="audio/mp3", autoplay=True)
                             st.session_state.retry_played = True
                         
-                        # 【更新】新的錄音引導
                         st.warning("🎤 請跟著唸：**「麥克風測試.1.2.3.4.甲乙丙丁」**")
                         spell_audio = st.audio_input("唸出測試語句", key=f"rec_spell_{st.session_state.teaser_idx}")
                         
                         if spell_audio:
                             with st.spinner("🔄 正在分析聲紋特徵... 生成雙人相聲中... (需約 10 秒)"):
-                                # 1. 複製聲音 (使用這段高品質的麥克風測試)
                                 if not st.session_state.guest_voice_id:
                                     spell_audio.seek(0)
                                     st.session_state.guest_voice_id = audio.clone_guest_voice(spell_audio.read())
                                 
-                                # 2. 生成劇本 (使用第一階段存下來的內容)
+                                # 【關鍵修改】傳入題目、正確答案、用戶第一次回答
                                 user_content = st.session_state.first_answer_text
-                                script = brain.generate_crosstalk_script(current_q['q'], user_content, display_name)
+                                script = brain.generate_crosstalk_script(current_q['q'], current_q['a'], user_content, display_name)
                                 
-                                # 3. 生成語音
                                 audio_clips = []
                                 for line in script:
                                     spk = st.session_state.guest_voice_id if line['speaker'] == 'guest' else None
@@ -145,15 +136,13 @@ def render(supabase, client, teaser_db):
                                 st.session_state.teaser_stage = "result"
                                 st.rerun()
 
-                    # 階段三：播放結果
+                    # 階段三：結果
                     elif st.session_state.teaser_stage == "result":
                         if st.session_state.crosstalk_audio:
                             st.markdown("### 🎭 AI 脫口秀：阿強 vs 你")
                             st.audio(st.session_state.crosstalk_audio, format="audio/mp3", autoplay=True)
-                            
                             st.warning("⚠️ 您的 AI 聲紋 ID 已暫時生成 (離開即銷毀)")
                             
-                            # 註冊按鈕
                             if st.button(f"🔥 註冊綁定 (幫{display_name} +10 XP)", type="primary", use_container_width=True):
                                 if st.session_state.guest_voice_id: audio.delete_voice(st.session_state.guest_voice_id)
                                 st.session_state.guest_data = None
@@ -170,4 +159,4 @@ def render(supabase, client, teaser_db):
                         st.info(f"AI: {txt}")
 
     st.divider()
-    # (底部註冊區已移除)
+    # (底部按鈕維持移除狀態)
