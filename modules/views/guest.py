@@ -4,10 +4,11 @@ from modules import ui, database, audio, brain
 def render(supabase, client):
     owner_data = st.session_state.guest_data
     role_key = owner_data['role'] # friend, partner...
-    role_name = role_key # 顯示用的角色代號 (可考慮轉中文)
+    role_name = role_key # 顯示用的角色代號
     owner_id = owner_data['owner_id']
     url_name = owner_data.get('display_name', '朋友')
     
+    # 1. 初始化資料
     profile = database.get_user_profile(supabase, user_id=owner_id)
     tier = profile.get('tier', 'basic')
     energy = profile.get('energy', 0)
@@ -15,7 +16,13 @@ def render(supabase, client):
     persona_data = database.load_persona(supabase, role_key)
     display_name = persona_data.get('member_nickname', url_name) if persona_data else url_name
 
-    # --- 自動播放開場白 (只在第一次進入時播放) ---
+    # 2. 自動執行每日簽到 (原本在接聽按鈕裡)
+    # 我們使用 session_state 來確保只執行一次，避免每次 refresh 都簽到
+    if "daily_checked" not in st.session_state:
+        database.check_daily_interaction(supabase, owner_id)
+        st.session_state.daily_checked = True
+
+    # 3. 自動播放開場白 (只在第一次進入時播放)
     if "opening_played" not in st.session_state:
         op_bytes = audio.get_audio_bytes(supabase, role_key, "opening")
         
@@ -34,11 +41,11 @@ def render(supabase, client):
         if final: st.audio(final, format="audio/mp3", autoplay=True)
         st.session_state.opening_played = True
 
-    # --- 顯示主要介面 ---
+    # --- 4. 顯示主要對話介面 ---
     
     # 狀態列
-    engine_type = "elevenlabs" # 強制顯示為擬真
-    ui.render_status_bar(tier, energy, 0, engine_type, is_guest=True)
+    # 這裡強制設定 engine_type 為 elevenlabs 讓顯示一致 (若有切換再變動)
+    ui.render_status_bar(tier, energy, 0, "elevenlabs", is_guest=True)
     
     st.markdown(f"<h3 style='text-align:center;'>與 {display_name} 通話中...</h3>", unsafe_allow_html=True)
     
@@ -71,7 +78,7 @@ def render(supabase, client):
                             has_nick = audio.get_audio_bytes(supabase, role_key, "nickname") is not None
                             ai_text = brain.think_and_reply(tier, persona_data, mems, user_text, has_nick)
                         
-                        # 生成語音 (朋友模式強制用 ElevenLabs 驚艷對方)
+                        # 生成語音 (朋友模式強制用 ElevenLabs)
                         forced_tier = 'advanced' if (role_key == "friend" or use_high) else 'basic'
                         wav = audio.generate_speech(ai_text, forced_tier)
                         
@@ -90,6 +97,7 @@ def render(supabase, client):
     if st.button("🚪 離開"):
         st.session_state.guest_data = None
         if "opening_played" in st.session_state: del st.session_state["opening_played"]
+        if "daily_checked" in st.session_state: del st.session_state["daily_checked"]
         st.query_params.clear()
         st.rerun()
     
