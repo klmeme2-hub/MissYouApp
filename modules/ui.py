@@ -1,56 +1,65 @@
 import streamlit as st
 
 def load_css():
-    """載入 EchoSoul 專屬：深藍與琥珀金視覺系統"""
     st.markdown("""
     <style>
-        /* 1. 全域背景與文字基礎 */
-        .stApp {
-            background-color: #001F3F !important; /* 深藍底 */
-            color: #E2E8F0 !important; /* 淺灰白文字 */
+        /* --- 1. 全局基礎 --- */
+        .stApp { background-color: #050505; color: #FAFAFA; }
+        .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp label, .stApp div, .stApp span, .stApp li {
+            color: #FAFAFA !important; font-family: "Source Sans Pro", sans-serif;
         }
+        .block-container { padding-top: 1rem !important; padding-bottom: 5rem !important; max-width: 1000px !important; }
+        hr { display: none !important; }
+        .stElementContainer { margin-bottom: -10px !important; }
 
-        /* 2. 側邊欄優化 */
-        [data-testid="stSidebar"] {
-            background-color: #00152B !important;
-            border-right: 1px solid rgba(255, 191, 0, 0.2);
-        }
+        /* --- 2. Header --- */
+        .header-title { font-size: 34px !important; font-weight: 700 !important; margin-bottom: 5px !important; }
+        .header-subtitle { font-size: 16px !important; color: #B0B0B0 !important; font-weight: 400; }
+        .user-info-box { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; }
 
-        /* 3. 琥珀金標題與品牌字 */
-        h1, h2, h3, .brand-text {
-            color: #FFBF00 !important;
-            font-family: 'Noto Serif TC', serif;
-            text-shadow: 0px 0px 10px rgba(255, 191, 0, 0.3);
+        /* --- 3. 狀態列 (強制不換行) --- */
+        .status-bar {
+            background: #1A1C24;
+            border: 1px solid #333;
+            padding: 12px 20px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            width: 100%;
+            min-width: 600px; /* 強制最小寬度，避免擠壓 */
+            overflow-x: auto; /* 若螢幕太小則滑動 */
         }
+        .status-left { font-size: 16px; font-weight: bold; color: #FFF; white-space: nowrap; }
+        .status-right { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 15px; white-space: nowrap; }
+        
+        /* Tooltip */
+        .tooltip-container { position: relative; display: inline-block; cursor: help; }
+        .sim-score { color: #00E5FF; font-weight: bold; border-bottom: 1px dashed #00E5FF; }
+        .val-energy { color: #FF4081; font-weight: bold; border-bottom: 1px dashed #FF4081; cursor: help; }
+        
+        .tooltip-text {
+            visibility: hidden; width: 180px; background-color: #333; color: #fff; text-align: center;
+            border-radius: 6px; padding: 8px; position: absolute; z-index: 10;
+            top: 130%; left: 50%; margin-left: -90px; opacity: 0; transition: opacity 0.3s;
+            border: 1px solid #555; font-size: 12px !important;
+        }
+        .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
 
-        /* 4. 按鈕視覺：琥珀金實心 */
-        .stButton>button {
-            background-color: #FFBF00 !important;
-            color: #001F3F !important;
-            border-radius: 20px !important;
-            border: none !important;
-            font-weight: 700 !important;
-            padding: 0.5rem 2rem !important;
-            transition: all 0.3s ease !important;
-        }
-        .stButton>button:hover {
-            box-shadow: 0px 0px 15px rgba(255, 191, 0, 0.6) !important;
-            transform: translateY(-2px);
-        }
-
-        /* 5. 卡片容器：模擬琥珀質感 */
-        [data-testid="stVerticalBlock"] > div > div > div[data-testid="stVerticalBlock"] {
-            background-color: rgba(255, 191, 0, 0.03);
-            border: 1px solid rgba(255, 191, 0, 0.1);
-            border-radius: 12px;
-            padding: 20px;
-        }
-
-        /* 6. 輸入框對焦顏色 */
-        textarea, input {
-            background-color: #002B55 !important;
-            color: white !important;
-            border: 1px solid rgba(255, 191, 0, 0.3) !important;
+        /* --- 4. 其他 --- */
+        input, textarea, .stSelectbox > div > div { background-color: #1F2229 !important; border: 1px solid #444 !important; color: white !important; }
+        button[kind="primary"] { background-color: #FF4B4B !important; border: none; }
+        .question-card-active { background-color: #1A1C24; padding: 20px; border-radius: 12px; border: 2px solid #2196F3; text-align: center; margin-bottom: 20px; }
+        .q-text { font-size: 20px; font-weight: bold; margin: 10px 0; }
+        .history-card { background-color: #262730; padding: 12px; border-radius: 8px; margin-bottom: 8px; }
+        .dashboard-card { background-color: #1A1C24; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 10px; }
+        .ai-bubble { background-color: #262730; padding: 15px; border-radius: 10px; border-left: 3px solid #FF4B4B; margin: 10px 0; }
+        #MainMenu, footer {visibility: hidden;}
+        
+        @media (max-width: 600px) {
+            .status-bar { flex-direction: column; align-items: flex-start; gap: 10px; min-width: auto; }
+            .user-info-box { display: none; }
         }
     </style>
     """, unsafe_allow_html=True)
