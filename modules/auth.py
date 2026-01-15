@@ -3,10 +3,14 @@ import streamlit as st
 def get_google_auth_url(supabase):
     """取得 Google 登入網址"""
     try:
-        # 【關鍵修改】優先從 Secrets 讀取當前網址，如果沒設定，才用預設值
-        # 這樣 Dev 版和 Prod 版就可以分開設定了
-        redirect_url = st.secrets.get("CURRENT_URL", "https://missyou-test.streamlit.app")
+        # 優先讀取 Secrets 設定的網址
+        # 如果沒設定，才用預設值 (這樣可以避免本地端和雲端網址混亂)
+        redirect_url = st.secrets.get("CURRENT_URL", "https://missyou.streamlit.app")
         
+        # 移除尾部的斜線，避免 Supabase 驗證失敗
+        if redirect_url.endswith("/"):
+            redirect_url = redirect_url[:-1]
+
         res = supabase.auth.sign_in_with_oauth({
             "provider": "google",
             "options": {
