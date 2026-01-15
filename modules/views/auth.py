@@ -2,22 +2,17 @@ import streamlit as st
 import datetime
 from modules import auth, database
 
-# 【修改】新增參數 current_cookies
+# 【關鍵修改】接收 current_cookies 參數
 def render(supabase, cookie_manager, current_cookies):
     
-    # 【修改】不再自己讀取，直接使用傳進來的資料 (避免 DuplicateKey 錯誤)
+    # 從傳入的 cookies 中讀取 (避免重複呼叫 get_all 導致錯誤)
+    saved_email = ""
     if current_cookies:
         saved_email = current_cookies.get("member_email", "")
-    else:
-        saved_email = ""
-        
-    saved_token = ""
-    if current_cookies:
-        saved_token = current_cookies.get("guest_token", "")
     
     col1, col2 = st.columns([6, 4], gap="large")
     
-    # --- 左側：品牌形象區 ---
+    # 左側：品牌形象區
     with col1:
         html_content = """
 <div style="padding-top: 40px; padding-right: 20px;">
@@ -30,7 +25,7 @@ EchoSoul
 <h3 style="color: #94A3B8 !important; font-size: 24px !important; font-weight: 400; margin-top: 0; margin-bottom: 40px; letter-spacing: 2px;">
 複刻你的數位聲紋
 </h3>
-<div style="font-size: 18px; line-height: 2.0; color: #E2E8F0; font-weight: 300; background: rgba(255, 255, 255, 0.03); padding: 30px; border-radius: 16px; border-left: 4px solid #A78BFA;">
+<div style="font-size: 18px; line-height: 2.0; color: #E2E8F0; font-weight: 300; background: rgba(255, 255, 255, 0.05); padding: 30px; border-radius: 16px; border-left: 4px solid #A78BFA;">
 <p>EchoSoul 利用最新的 AI 技術，為您鎸刻聲紋，將這份溫暖永久保存在元宇宙中。</p>
 <p>無論距離多遠，無論時間多久，只要點開，我就在。</p>
 <p style="margin-top: 25px; color: #A78BFA; font-weight: 600; font-family: 'Courier New', monospace;">
@@ -41,19 +36,17 @@ Voice remains, Soul echoes.
 """
         st.markdown(html_content, unsafe_allow_html=True)
 
-    # --- 右側：登入註冊區 ---
+    # 右側：登入註冊區
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
         
         with st.container():
             st.subheader("👤 會員登入")
             
-            # Google 登入
+            # Google 登入按鈕
             auth_url = auth.get_google_auth_url(supabase)
             if auth_url:
-                # 使用 HTML 渲染按鈕
-                from modules.auth import get_google_btn_html
-                st.markdown(get_google_btn_html(auth_url), unsafe_allow_html=True)
+                st.link_button("G 使用 Google 帳號繼續", auth_url, type="primary", use_container_width=True)
             else:
                 st.error("Google 登入設定未完成")
 
@@ -68,7 +61,10 @@ Voice remains, Soul echoes.
                     if st.form_submit_button("登入", use_container_width=True):
                         res = auth.login_user(supabase, le, lp)
                         if res and res.user:
+                            # 登入成功寫入 Cookie
                             cookie_manager.set("member_email", le, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
+                            cookie_manager.set("sb_access_token", res.session.access_token, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
+                            cookie_manager.set("sb_refresh_token", res.session.refresh_token, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
                             st.session_state.user = res
                             st.rerun()
                         else:
@@ -86,7 +82,7 @@ Voice remains, Soul echoes.
                         st.success("註冊成功！")
                         st.rerun()
                     else:
-                        st.error("註冊失敗，Email 可能已被使用")
+                        st.error("註冊失敗")
 
             st.markdown("""
             <div style="margin-top: 20px; font-size: 12px; color: #666; text-align: center; border-top: 1px solid #333; padding-top: 15px;">
