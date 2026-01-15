@@ -1,18 +1,17 @@
 import streamlit as st
 import datetime
+import time # 補上
 from modules import auth, database
 
-# 【關鍵修改】接收 current_cookies 參數
 def render(supabase, cookie_manager, current_cookies):
     
-    # 從傳入的 cookies 中讀取 (避免重複呼叫 get_all 導致錯誤)
     saved_email = ""
     if current_cookies:
         saved_email = current_cookies.get("member_email", "")
     
     col1, col2 = st.columns([6, 4], gap="large")
     
-    # 左側：品牌形象區
+    # 左側
     with col1:
         html_content = """
 <div style="padding-top: 40px; padding-right: 20px;">
@@ -36,14 +35,13 @@ Voice remains, Soul echoes.
 """
         st.markdown(html_content, unsafe_allow_html=True)
 
-    # 右側：登入註冊區
+    # 右側
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
-        
         with st.container():
             st.subheader("👤 會員登入")
             
-            # Google 登入按鈕
+            # Google 按鈕
             auth_url = auth.get_google_auth_url(supabase)
             if auth_url:
                 st.link_button("G 使用 Google 帳號繼續", auth_url, type="primary", use_container_width=True)
@@ -61,10 +59,15 @@ Voice remains, Soul echoes.
                     if st.form_submit_button("登入", use_container_width=True):
                         res = auth.login_user(supabase, le, lp)
                         if res and res.user:
-                            # 登入成功寫入 Cookie
-                            cookie_manager.set("member_email", le, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
-                            cookie_manager.set("sb_access_token", res.session.access_token, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
-                            cookie_manager.set("sb_refresh_token", res.session.refresh_token, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
+                            # 【關鍵修復】存入 Cookie 並等待
+                            expires = datetime.datetime.now() + datetime.timedelta(days=30)
+                            cookie_manager.set("member_email", le, expires_at=expires)
+                            cookie_manager.set("sb_access_token", res.session.access_token, expires_at=expires)
+                            cookie_manager.set("sb_refresh_token", res.session.refresh_token, expires_at=expires)
+                            
+                            st.success("登入成功！")
+                            time.sleep(2) # 等待寫入
+                            
                             st.session_state.user = res
                             st.rerun()
                         else:
@@ -74,23 +77,14 @@ Voice remains, Soul echoes.
                 st.caption("✨ 註冊即送 **免費體驗點數**")
                 se = st.text_input("Email", key="s_e")
                 sp = st.text_input("設定密碼", type="password", key="s_p")
-                
                 if st.button("註冊", use_container_width=True):
                     res = auth.signup_user(supabase, se, sp)
                     if res and res.user:
+                        database.get_user_profile(supabase, res.user.id)
                         st.session_state.user = res
                         st.success("註冊成功！")
                         st.rerun()
                     else:
                         st.error("註冊失敗")
 
-            st.markdown("""
-            <div style="margin-top: 20px; font-size: 12px; color: #666; text-align: center; border-top: 1px solid #333; padding-top: 15px;">
-                點擊註冊即代表您同意 
-                <a href="/服務條款" target="_self" style="color: #888; text-decoration: none;">服務條款</a> 與 
-                <a href="/隱私權政策" target="_self" style="color: #888; text-decoration: none;">隱私權政策</a>
-                <div style="margin-top: 20px; font-family: monospace; color: #555;">
-                © 2026 EchoSoul. All rights reserved.
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown("""<div style="margin-top:20px; font-size:12px; color:#666; text-align:center;">© 2026 EchoSoul. All rights reserved.</div>""", unsafe_allow_html=True)
