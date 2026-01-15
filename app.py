@@ -44,30 +44,38 @@ if "friend_stage" not in st.session_state: st.session_state.friend_stage = "list
 # 4. 路由與攔截邏輯 (Router)
 # ==========================================
 
-# A. 處理 Google 登入回調 (OAuth Callback)
-# 當網址有 ?code= 時，代表剛從 Google 回來
+# ==========================================
+# 處理 Google 登入回調 (OAuth Callback)
+# ==========================================
 if "code" in st.query_params:
     try:
         code = st.query_params["code"]
-        # 用 code 交換 session
+        
+        # 嘗試交換 Session
         res = supabase.auth.exchange_code_for_session({"auth_code": code})
+        
         if res and res.user:
             st.session_state.user = res
             
             # 初始化用戶資料
             database.get_user_profile(supabase, res.user.id)
             
-            # 【重要】檢查是否有綁定任務 (從 Cookie 讀取暫存的 Voice ID)
-            # cookies = cookie_manager.get_all() # 這裡 stx 可能讀不到剛寫入的，暫時略過複雜綁定邏輯
-            # 未來可在此處將 Cookie 中的 pending_voice_id 寫入資料庫
-            
-            st.success("Google 登入成功！")
-            # 清除網址參數，避免重新整理又跑一次
+            # 成功後，強制清除網址參數，避免重新整理時重複送 code 導致報錯
             st.query_params.clear()
             st.rerun()
+            
     except Exception as e:
-        st.error(f"登入驗證失敗: {e}")
-        st.query_params.clear()
+        # 【關鍵修改】如果報錯，先檢查是否其實已經登入了 (Session已建立)
+        # 很多時候是因為 code 只能用一次，第二次刷新就會報錯，但其實 user 已經在庫裡了
+        session = supabase.auth.get_session()
+        if session:
+            st.session_state.user = session
+            st.query_params.clear()
+            st.rerun()
+        else:
+            # 真的失敗才顯示錯誤，但用 toast 取代 error 比較不嚇人
+            st.toast(f"登入重試中... ({str(e)})", icon="⚠️")
+            # 不清除參數，讓用戶可以手動再試一次或按上一頁
 
 # B. 處理訪客連結
 if "token" in st.query_params and not st.session_state.user and not st.session_state.guest_data:
@@ -96,3 +104,4 @@ elif not st.session_state.user:
 else:
     # 會員後台
     view_member.render(supabase, client, question_db)
+
