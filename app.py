@@ -3,18 +3,22 @@ import json
 import time
 import datetime
 from openai import OpenAI
-from modules import ui, auth, database
-from modules.views import auth as view_auth
-from modules.views import member as view_member
-from modules.views import guest as view_guest
+from modules import ui, auth, database, audio, brain, config
+from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory, tab_config
 import extra_streamlit_components as stx
 
 # 1. UI 設定
 st.set_page_config(page_title="EchoSoul", page_icon="♾️", layout="centered")
 ui.load_css()
 
-# 2. 系統初始化
+# 2. 系統初始化 (關鍵：Cookie Manager)
+# key="main_cookies" 確保全域唯一
 cookie_manager = stx.CookieManager(key="main_cookies")
+
+# 【關鍵修復】: 在最上層讀取一次 Cookie，之後往下傳遞，避免重複呼叫
+time.sleep(0.1) # 稍微等待載入
+all_cookies = cookie_manager.get_all()
+
 if "SUPABASE_URL" not in st.secrets: st.stop()
 supabase = database.init_supabase()
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -43,26 +47,24 @@ if "call_status" not in st.session_state: st.session_state.call_status = "connec
 if "friend_stage" not in st.session_state: st.session_state.friend_stage = "listen"
 
 # ==========================================
-# 4. 自動登入邏輯 (Auto Login) - 關鍵新增
+# 4. 自動登入邏輯 (Auto Login)
 # ==========================================
-# 如果現在沒登入，且網址沒有要處理 Token 或 Code，就檢查 Cookie
 if not st.session_state.user and "code" not in st.query_params and "token" not in st.query_params:
-    try:
-        # 稍微延遲確保 Cookie Manager 載入
-        time.sleep(0.1)
-        cookies = cookie_manager.get_all()
-        access_token = cookies.get("sb_access_token")
-        refresh_token = cookies.get("sb_refresh_token")
+    if all_cookies:
+        access_token = all_cookies.get("sb_access_token")
+        refresh_token = all_cookies.get("sb_refresh_token")
         
         if access_token and refresh_token:
-            # 嘗試用 Cookie 恢復 Session
-            res = supabase.auth.set_session(access_token, refresh_token)
-            if res and res.user:
-                st.session_state.user = res
-                database.get_user_profile(supabase, res.user.id)
-                st.rerun() # 成功恢復，刷新頁面
-    except:
-        pass # Cookie 無效或過期，忽略
+            try:
+                res = supabase.auth.set_session(access_token, refresh_token)
+                if res and res.user:
+                    st.session_state.user = res
+                    database.get_user_profile(supabase, res.user.id)
+                    st.rerun()
+            except:
+                # 過期則清除
+                cookie_manager.delete("sb_access_token")
+                cookie_manager.delete("sb_refresh_token")
 
 # ==========================================
 # 5. 路由與攔截
@@ -78,7 +80,7 @@ if "code" in st.query_params:
             st.session_state.user = res
             database.get_user_profile(supabase, res.user.id)
             
-            # 【關鍵】登入成功，寫入 Cookie (30天)
+            # 寫入 Cookie (30天)
             expires = datetime.datetime.now() + datetime.timedelta(days=30)
             cookie_manager.set("sb_access_token", res.session.access_token, expires_at=expires)
             cookie_manager.set("sb_refresh_token", res.session.refresh_token, expires_at=expires)
@@ -88,15 +90,17 @@ if "code" in st.query_params:
             st.rerun()
             
     except Exception as e:
-        err_msg = str(e).lower()
-        if "code verifier" in err_msg:
+        # 容錯處理：如果已經有 Session 就不報錯
+        session = supabase.auth.get_session()
+        if session:
+            st.session_state.user = session
+            st.query_params.clear()
+            st.rerun()
+        else:
             st.toast("⚠️ 連線逾時，請重新點擊登入", icon="🔄")
             st.query_params.clear()
             time.sleep(2)
             st.rerun()
-        else:
-            st.error(f"登入異常: {e}")
-            st.query_params.clear()
 
 # B. 訪客 Token
 if "token" in st.query_params and not st.session_state.user and not st.session_state.guest_data:
@@ -118,9 +122,8 @@ if st.session_state.guest_data:
     view_guest.render(supabase, client, teaser_db)
 
 elif not st.session_state.user:
-    # 這裡要把 cookie_manager 傳進去，讓 Email 登入也能寫 Cookie
-    view_auth.render(supabase, cookie_manager)
+    # 【關鍵修改】傳入 all_cookies，讓 auth.py 使用
+    view_auth.render(supabase, cookie_manager, all_cookies)
 
 else:
-    # 這裡要把 cookie_manager 傳進去，讓登出時能刪除 Cookie
     view_member.render(supabase, client, question_db, cookie_manager)
