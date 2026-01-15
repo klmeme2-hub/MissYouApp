@@ -8,28 +8,29 @@ def render(supabase, cookie_manager):
     
     col1, col2 = st.columns([6, 4], gap="large")
     
-    # 左側：品牌形象區
+    # 左側：品牌形象區 (維持最新美化版)
     with col1:
-        st.markdown("""
-        <div style="padding-top: 40px; padding-right: 20px;">
-            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
-                <span style="font-size: 48px;">♾️</span> 
-                <h1 style="font-size: 48px !important; font-weight: 800; background: linear-gradient(135deg, #FFFFFF 0%, #A78BFA 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0px; line-height: 1.2;">
-                EchoSoul
-                </h1>
-            </div>
-            <h3 style="color: #94A3B8 !important; font-size: 24px !important; font-weight: 400; margin-top: 0; margin-bottom: 40px; letter-spacing: 2px;">
-            複刻你的數位聲紋
-            </h3>
-            <div style="font-size: 18px; line-height: 2.0; color: #E2E8F0; font-weight: 300; background: rgba(255, 255, 255, 0.03); padding: 30px; border-radius: 16px; border-left: 4px solid #A78BFA;">
-                <p>EchoSoul 利用最新的 AI 技術，為您鎸刻聲紋，將這份溫暖永久保存在元宇宙中。</p>
-                <p>無論距離多遠，無論時間多久，只要點開，我就在。</p>
-                <p style="margin-top: 25px; color: #A78BFA; font-weight: 600; font-family: 'Courier New', monospace;">
-                Voice remains, Soul echoes.
-                </p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        html_content = """
+<div style="padding-top: 40px; padding-right: 20px;">
+<div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+<span style="font-size: 48px;">♾️</span> 
+<h1 style="font-size: 48px !important; font-weight: 800; background: linear-gradient(135deg, #FFFFFF 0%, #A78BFA 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0px; line-height: 1.2;">
+EchoSoul
+</h1>
+</div>
+<h3 style="color: #94A3B8 !important; font-size: 24px !important; font-weight: 400; margin-top: 0; margin-bottom: 40px; letter-spacing: 2px;">
+複刻你的數位聲紋
+</h3>
+<div style="font-size: 18px; line-height: 2.0; color: #E2E8F0; font-weight: 300; background: rgba(255, 255, 255, 0.05); padding: 30px; border-radius: 16px; border-left: 4px solid #A78BFA;">
+<p>EchoSoul 利用最新的 AI 技術，為您鎸刻聲紋，將這份溫暖永久保存在元宇宙中。</p>
+<p>無論距離多遠，無論時間多久，只要點開，我就在。</p>
+<p style="margin-top: 25px; color: #A78BFA; font-weight: 600; font-family: 'Courier New', monospace;">
+Voice remains, Soul echoes.
+</p>
+</div>
+</div>
+"""
+        st.markdown(html_content, unsafe_allow_html=True)
 
     # 右側：登入註冊區
     with col2:
@@ -38,17 +39,15 @@ def render(supabase, cookie_manager):
         with st.container():
             st.subheader("👤 會員登入")
             
-            # --- Google 登入 (使用原生按鈕，最穩定) ---
+            # Google 登入 (使用原生按鈕)
             auth_url = auth.get_google_auth_url(supabase)
             if auth_url:
-                # 這裡改回 st.link_button，雖然會開新分頁，但保證能登入
                 st.link_button("G 使用 Google 帳號繼續", auth_url, type="primary", use_container_width=True)
             else:
                 st.error("Google 登入設定未完成")
 
-            st.markdown("""<div style="text-align:center; margin: 20px 0; color:#666; font-size:12px;">- OR -</div>""", unsafe_allow_html=True)
+            st.markdown("""<div style="text-align:center; margin: 20px 0; color:#666;">- OR -</div>""", unsafe_allow_html=True)
             
-            # --- Email 登入區 ---
             tab_l, tab_s = st.tabs(["登入", "註冊"])
             
             with tab_l:
@@ -79,12 +78,7 @@ def render(supabase, cookie_manager):
                         st.error("註冊失敗")
 
             st.markdown("""
-            <div style="margin-top: 20px; font-size: 12px; color: #666; text-align: center; border-top: 1px solid #333; padding-top: 15px;">
-                點擊註冊即代表您同意 
-                <a href="/服務條款" target="_self" style="color: #888; text-decoration: none;">服務條款</a> 與 
-                <a href="/隱私權政策" target="_self" style="color: #888; text-decoration: none;">隱私權政策</a>
-                <div style="margin-top: 20px; font-family: monospace; color: #555;">
+            <div style="margin-top: 20px; font-size: 12px; color: #666; text-align: center;">
                 © 2026 EchoSoul. All rights reserved.
-                </div>
             </div>
             """, unsafe_allow_html=True)
