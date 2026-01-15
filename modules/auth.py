@@ -5,7 +5,7 @@ def get_google_auth_url(supabase):
     try:
         # 優先讀取 Secrets 設定的網址
         # 如果沒設定，才用預設值 (這樣可以避免本地端和雲端網址混亂)
-        redirect_url = st.secrets.get("CURRENT_URL", "https://missyou.streamlit.app")
+        redirect_url = st.secrets.get("CURRENT_URL", "https://missyou-test.streamlit.app")
         
         # 移除尾部的斜線，避免 Supabase 驗證失敗
         if redirect_url.endswith("/"):
