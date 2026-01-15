@@ -2,12 +2,19 @@ import streamlit as st
 import datetime
 from modules import auth, database
 
-def render(supabase, cookie_manager):
-    # 讀取 Cookie
-    cookies = cookie_manager.get_all()
-    saved_email = cookies.get("member_email", "")
+# 【修改】新增參數 current_cookies
+def render(supabase, cookie_manager, current_cookies):
     
-    # 左右分欄
+    # 【修改】不再自己讀取，直接使用傳進來的資料 (避免 DuplicateKey 錯誤)
+    if current_cookies:
+        saved_email = current_cookies.get("member_email", "")
+    else:
+        saved_email = ""
+        
+    saved_token = ""
+    if current_cookies:
+        saved_token = current_cookies.get("guest_token", "")
+    
     col1, col2 = st.columns([6, 4], gap="large")
     
     # --- 左側：品牌形象區 ---
@@ -41,22 +48,16 @@ Voice remains, Soul echoes.
         with st.container():
             st.subheader("👤 會員登入")
             
-            # 【修改】Google 按鈕移到 Tab 之外，放在最上面
+            # Google 登入
             auth_url = auth.get_google_auth_url(supabase)
             if auth_url:
-                # 使用 Streamlit 原生 link_button
-                st.link_button("G 使用 Google 帳號繼續", auth_url, type="primary", use_container_width=True)
+                # 使用 HTML 渲染按鈕
+                from modules.auth import get_google_btn_html
+                st.markdown(get_google_btn_html(auth_url), unsafe_allow_html=True)
             else:
-                st.error("Google 登入設定未完成，請檢查 Secrets")
+                st.error("Google 登入設定未完成")
 
-            # 分隔線
-            st.markdown("""
-            <div style="display: flex; align-items: center; text-align: center; color: #666; margin: 20px 0;">
-                <div style="flex-grow: 1; border-bottom: 1px solid #444;"></div>
-                <div style="margin: 0 10px; font-size: 12px;">或是用 Email</div>
-                <div style="flex-grow: 1; border-bottom: 1px solid #444;"></div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown("""<div style="text-align:center; margin: 20px 0; color:#666; font-size:12px;">- OR -</div>""", unsafe_allow_html=True)
             
             tab_l, tab_s = st.tabs(["登入", "註冊"])
             
@@ -64,7 +65,6 @@ Voice remains, Soul echoes.
                 with st.form("login_form"):
                     le = st.text_input("Email", value=saved_email)
                     lp = st.text_input("密碼", type="password")
-                    
                     if st.form_submit_button("登入", use_container_width=True):
                         res = auth.login_user(supabase, le, lp)
                         if res and res.user:
@@ -88,9 +88,13 @@ Voice remains, Soul echoes.
                     else:
                         st.error("註冊失敗，Email 可能已被使用")
 
-            # Footer
             st.markdown("""
-            <div style="margin-top: 20px; font-size: 12px; color: #666; text-align: center;">
+            <div style="margin-top: 20px; font-size: 12px; color: #666; text-align: center; border-top: 1px solid #333; padding-top: 15px;">
+                點擊註冊即代表您同意 
+                <a href="/服務條款" target="_self" style="color: #888; text-decoration: none;">服務條款</a> 與 
+                <a href="/隱私權政策" target="_self" style="color: #888; text-decoration: none;">隱私權政策</a>
+                <div style="margin-top: 20px; font-family: monospace; color: #555;">
                 © 2026 EchoSoul. All rights reserved.
+                </div>
             </div>
             """, unsafe_allow_html=True)
