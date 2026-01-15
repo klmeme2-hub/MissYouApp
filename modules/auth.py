@@ -3,18 +3,13 @@ import streamlit as st
 def get_google_auth_url(supabase):
     """取得 Google 登入網址"""
     try:
-        # 讀取 Secrets
         redirect_url = st.secrets.get("CURRENT_URL", "https://missyou.streamlit.app")
-        
-        # 去除尾部斜線 (防呆)
-        if redirect_url.endswith("/"):
-            redirect_url = redirect_url[:-1]
+        if redirect_url.endswith("/"): redirect_url = redirect_url[:-1]
 
-        # 這裡不使用 skip_browser_redirect，讓它生成標準網址
         res = supabase.auth.sign_in_with_oauth({
             "provider": "google",
             "options": {
-                "redirect_to": redirect_url,
+                "redirect_to": redirect_url
             }
         })
         return res.url
