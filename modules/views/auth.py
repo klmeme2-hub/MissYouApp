@@ -3,14 +3,12 @@ import datetime
 from modules import auth, database
 
 def render(supabase, cookie_manager):
-    # 讀取 Cookie
     cookies = cookie_manager.get_all()
     saved_email = cookies.get("member_email", "")
     
-    # 左右分欄
     col1, col2 = st.columns([6, 4], gap="large")
     
-    # --- 左側：品牌形象區 ---
+    # 左側：品牌形象區
     with col1:
         html_content = """
 <div style="padding-top: 40px; padding-right: 20px;">
@@ -34,63 +32,51 @@ Voice remains, Soul echoes.
 """
         st.markdown(html_content, unsafe_allow_html=True)
 
-    # --- 右側：登入註冊區 ---
+    # 右側：登入註冊區
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
-        
         with st.container():
             st.subheader("👤 會員登入")
             
-            # 【修改】Google 按鈕移到 Tab 之外，放在最上面
+            # --- 1. Google 登入 (HTML 按鈕版) ---
             auth_url = auth.get_google_auth_url(supabase)
             if auth_url:
-                # 使用 Streamlit 原生 link_button
-                st.link_button("G 使用 Google 帳號繼續", auth_url, type="primary", use_container_width=True)
+                # 使用 HTML 渲染按鈕，強制 target="_self"
+                btn_html = auth.get_google_btn_html(auth_url)
+                st.markdown(btn_html, unsafe_allow_html=True)
             else:
-                st.error("Google 登入設定未完成，請檢查 Secrets")
+                st.error("Google 登入設定未完成")
 
-            # 分隔線
-            st.markdown("""
-            <div style="display: flex; align-items: center; text-align: center; color: #666; margin: 20px 0;">
-                <div style="flex-grow: 1; border-bottom: 1px solid #444;"></div>
-                <div style="margin: 0 10px; font-size: 12px;">或是用 Email</div>
-                <div style="flex-grow: 1; border-bottom: 1px solid #444;"></div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown("""<div style="text-align:center; margin: 15px 0; color:#666; font-size:12px;">- OR -</div>""", unsafe_allow_html=True)
             
+            # --- 2. Email 登入 ---
             tab_l, tab_s = st.tabs(["登入", "註冊"])
-            
             with tab_l:
                 with st.form("login_form"):
                     le = st.text_input("Email", value=saved_email)
                     lp = st.text_input("密碼", type="password")
-                    
                     if st.form_submit_button("登入", use_container_width=True):
                         res = auth.login_user(supabase, le, lp)
                         if res and res.user:
+                            # 寫入 Session Cookie (30天)
+                            cookie_manager.set("sb_access_token", res.session.access_token, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
+                            cookie_manager.set("sb_refresh_token", res.session.refresh_token, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
                             cookie_manager.set("member_email", le, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
+                            
                             st.session_state.user = res
                             st.rerun()
-                        else:
-                            st.error("登入失敗")
+                        else: st.error("登入失敗")
             
             with tab_s:
-                st.caption("✨ 註冊即送 **免費體驗點數**")
+                st.caption("✨ 註冊送體驗點數")
                 se = st.text_input("Email", key="s_e")
                 sp = st.text_input("設定密碼", type="password", key="s_p")
-                
                 if st.button("註冊", use_container_width=True):
                     res = auth.signup_user(supabase, se, sp)
                     if res and res.user:
                         st.session_state.user = res
                         st.success("註冊成功！")
                         st.rerun()
-                    else:
-                        st.error("註冊失敗，Email 可能已被使用")
+                    else: st.error("註冊失敗")
 
-            # Footer
-            st.markdown("""
-            <div style="margin-top: 20px; font-size: 12px; color: #666; text-align: center;">
-                © 2026 EchoSoul. All rights reserved.
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown("""<div style="margin-top:20px; font-size:12px; color:#666; text-align:center;">© 2026 EchoSoul. All rights reserved.</div>""", unsafe_allow_html=True)
