@@ -7,16 +7,19 @@ from modules import ui, auth, database, audio, brain, config
 from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory, tab_config
 import extra_streamlit_components as stx
 
+# ==========================================
+# 應用程式：EchoSoul (SaaS Beta 4.5 - NameError 修復版)
+# ==========================================
+
 # 1. UI 設定
 st.set_page_config(page_title="EchoSoul", page_icon="♾️", layout="centered")
 ui.load_css()
 
-# 2. 系統初始化 (關鍵：Cookie Manager)
-# key="main_cookies" 確保全域唯一
-cookie_manager = stx.CookieManager(key="main_cookies")
+# 2. 系統初始化
+cookie_manager = stx.CookieManager(key="main_cookie_mgr")
 
-# 【關鍵修復】: 在最上層讀取一次 Cookie，之後往下傳遞，避免重複呼叫
-time.sleep(0.1) # 稍微等待載入
+# 【關鍵修正】在這裡讀取 Cookie，確保 all_cookies 變數存在
+time.sleep(0.1) # 稍微等待讓 Cookie Manager 載入
 all_cookies = cookie_manager.get_all()
 
 if "SUPABASE_URL" not in st.secrets: st.stop()
@@ -46,9 +49,7 @@ if "current_token" not in st.session_state: st.session_state.current_token = Non
 if "call_status" not in st.session_state: st.session_state.call_status = "connected"
 if "friend_stage" not in st.session_state: st.session_state.friend_stage = "listen"
 
-# ==========================================
 # 4. 自動登入邏輯 (Auto Login)
-# ==========================================
 if not st.session_state.user and "code" not in st.query_params and "token" not in st.query_params:
     if all_cookies:
         access_token = all_cookies.get("sb_access_token")
@@ -56,20 +57,18 @@ if not st.session_state.user and "code" not in st.query_params and "token" not i
         
         if access_token and refresh_token:
             try:
+                # 靜默登入
                 res = supabase.auth.set_session(access_token, refresh_token)
                 if res and res.user:
                     st.session_state.user = res
                     database.get_user_profile(supabase, res.user.id)
                     st.rerun()
             except:
-                # 過期則清除
+                # Token 失效，清除 Cookie
                 cookie_manager.delete("sb_access_token")
                 cookie_manager.delete("sb_refresh_token")
 
-# ==========================================
-# 5. 路由與攔截
-# ==========================================
-
+# 5. 網址參數攔截
 # A. Google 登入回調
 if "code" in st.query_params:
     try:
@@ -85,15 +84,12 @@ if "code" in st.query_params:
             cookie_manager.set("sb_access_token", res.session.access_token, expires_at=expires)
             cookie_manager.set("sb_refresh_token", res.session.refresh_token, expires_at=expires)
             
-            st.success("Google 登入成功！")
+            st.success("登入成功！")
             st.query_params.clear()
             st.rerun()
-            
     except Exception as e:
-        # 容錯處理：如果已經有 Session 就不報錯
-        session = supabase.auth.get_session()
-        if session:
-            st.session_state.user = session
+        # 容錯處理：如果 Session 已存在則忽略錯誤
+        if supabase.auth.get_session():
             st.query_params.clear()
             st.rerun()
         else:
@@ -102,7 +98,7 @@ if "code" in st.query_params:
             time.sleep(2)
             st.rerun()
 
-# B. 訪客 Token
+# B. 訪客連結
 if "token" in st.query_params and not st.session_state.user and not st.session_state.guest_data:
     try:
         raw = st.query_params["token"]
@@ -115,15 +111,31 @@ if "token" in st.query_params and not st.session_state.user and not st.session_s
     except: pass
 
 # ==========================================
-# 6. 介面渲染
+# 6. 介面渲染 (路由)
 # ==========================================
 
 if st.session_state.guest_data:
+    # 訪客模式
+    from modules.views import guest as view_guest
     view_guest.render(supabase, client, teaser_db)
 
 elif not st.session_state.user:
-    # 【關鍵修改】傳入 all_cookies，讓 auth.py 使用
+    # 登入畫面 (確保傳入 3 個參數)
+    from modules.views import auth as view_auth
     view_auth.render(supabase, cookie_manager, all_cookies)
 
 else:
-    view_member.render(supabase, client, question_db, cookie_manager)
+    # 會員後台
+    from modules.views import member as view_member
+    
+    # 登出邏輯 (放在這裡處理 Cookie 清除)
+    if st.session_state.get("logout_clicked"):
+        cookie_manager.delete("sb_access_token")
+        cookie_manager.delete("sb_refresh_token")
+        cookie_manager.delete("member_email") # 選擇性清除 Email 紀錄
+        del st.session_state["logout_clicked"]
+        supabase.auth.sign_out()
+        st.session_state.user = None
+        st.rerun()
+
+    view_member.render(supabase, client, question_db)
