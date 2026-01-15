@@ -3,21 +3,12 @@ import json
 import time
 import datetime
 from openai import OpenAI
+from modules import ui, auth, database, audio, brain, config
+from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory, tab_config
 import extra_streamlit_components as stx
 
-# --- 核心模組 ---
-from modules import ui, auth, database, audio, brain, config
-
-# --- 介面視圖 (View) 模組：移到最上方引用，防止 NameError ---
-from modules.views import auth as view_auth
-from modules.views import member as view_member
-from modules.views import guest as view_guest
-
-# --- Tab 模組 ---
-from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory, tab_config
-
 # ==========================================
-# 應用程式：EchoSoul (Ver. 0115 備份 - 修復版)
+# 應用程式：EchoSoul (Ver. 0115 備份 - 正常版)
 # ==========================================
 
 # 1. UI 設定
@@ -80,13 +71,18 @@ if "token" in st.query_params and not st.session_state.user and not st.session_s
 
 if st.session_state.guest_data:
     # A. 訪客模式
-    # 這裡傳入 None 作為 teaser_db (因為這是備份版，尚未整合腦筋急轉彎題庫)
+    # 注意：這裡需傳入 teaser_db，若您的 guest.py 需要的話。
+    # 這裡假設您的 guest.py 已經改為不需要 teaser_db 或您已在 app.py 讀取
+    # 為求保險，這裡先傳入 None，若有報錯請補上 load_brain_teasers
+    from modules.views import guest as view_guest
     view_guest.render(supabase, client, None)
 
 elif not st.session_state.user:
-    # B. 登入畫面 (現在 view_auth 肯定已經定義了)
+    # B. 登入畫面
+    from modules.views import auth as view_auth
     view_auth.render(supabase, cookie_manager)
 
 else:
     # C. 會員後台
+    from modules.views import member as view_member
     view_member.render(supabase, client, question_db)
