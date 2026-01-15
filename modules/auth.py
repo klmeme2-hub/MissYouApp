@@ -3,42 +3,24 @@ import streamlit as st
 def get_google_auth_url(supabase):
     """取得 Google 登入網址"""
     try:
-        redirect_url = st.secrets.get("CURRENT_URL", "https://missyou-test.streamlit.app")
-        if redirect_url.endswith("/"): redirect_url = redirect_url[:-1]
+        # 讀取 Secrets
+        redirect_url = st.secrets.get("CURRENT_URL", "https://missyou.streamlit.app")
+        
+        # 去除尾部斜線 (防呆)
+        if redirect_url.endswith("/"):
+            redirect_url = redirect_url[:-1]
 
+        # 這裡不使用 skip_browser_redirect，讓它生成標準網址
         res = supabase.auth.sign_in_with_oauth({
             "provider": "google",
-            "options": {"redirect_to": redirect_url, "skip_browser_redirect": True}
+            "options": {
+                "redirect_to": redirect_url,
+            }
         })
         return res.url
     except Exception as e:
         print(f"Auth Error: {e}")
         return None
-
-def get_google_btn_html(auth_url):
-    """
-    生成強制在當前分頁開啟的 HTML 按鈕
-    樣式模仿 Streamlit 原生 Primary Button
-    """
-    return f"""
-    <a href="{auth_url}" target="_self" style="text-decoration: none;">
-        <div style="
-            width: 100%;
-            background: linear-gradient(135deg, #FF4B4B 0%, #FF2B2B 100%);
-            color: white;
-            padding: 0.6rem;
-            border-radius: 8px;
-            text-align: center;
-            font-weight: 600;
-            font-family: 'Source Sans Pro', sans-serif;
-            margin-bottom: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-            transition: transform 0.1s;
-        " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
-            G 使用 Google 帳號繼續
-        </div>
-    </a>
-    """
 
 def login_user(supabase, email, password):
     try:
