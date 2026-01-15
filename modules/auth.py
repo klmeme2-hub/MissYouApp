@@ -5,7 +5,7 @@ def get_google_auth_url(supabase):
     try:
         # 【關鍵修改】優先從 Secrets 讀取當前網址，如果沒設定，才用預設值
         # 這樣 Dev 版和 Prod 版就可以分開設定了
-        redirect_url = st.secrets.get("CURRENT_URL", "https://missyou.streamlit.app")
+        redirect_url = st.secrets.get("CURRENT_URL", "https://missyou-test.streamlit.app")
         
         res = supabase.auth.sign_in_with_oauth({
             "provider": "google",
