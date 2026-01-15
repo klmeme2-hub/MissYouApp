@@ -1,10 +1,10 @@
 import streamlit as st
 import json
+import time
+import datetime
 from openai import OpenAI
-from modules import ui, auth, database
-from modules.views import auth as view_auth
-from modules.views import member as view_member
-from modules.views import guest as view_guest
+from modules import ui, auth, database, audio, brain, config
+from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory, tab_config
 import extra_streamlit_components as stx
 
 # 1. UI 設定
@@ -12,7 +12,9 @@ st.set_page_config(page_title="EchoSoul", page_icon="♾️", layout="centered")
 ui.load_css()
 
 # 2. 系統初始化
-cookie_manager = stx.CookieManager()
+# 這裡必須設定 key，否則 re-run 可能會丟失狀態
+cookie_manager = stx.CookieManager(key="main_cookie_mgr")
+
 if "SUPABASE_URL" not in st.secrets: st.stop()
 supabase = database.init_supabase()
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -22,14 +24,7 @@ def load_questions():
     try:
         with open('questions.json', 'r', encoding='utf-8') as f: return json.load(f)
     except: return {}
-@st.cache_data
-def load_brain_teasers():
-    try:
-        with open('questions2.json', 'r', encoding='utf-8') as f: return json.load(f)
-    except: return {"brain_teasers": []}
-
 question_db = load_questions()
-teaser_db = load_brain_teasers()
 
 # 3. 狀態初始化
 if "user" not in st.session_state: st.session_state.user = None
@@ -37,47 +32,59 @@ if "guest_data" not in st.session_state: st.session_state.guest_data = None
 if "step" not in st.session_state: st.session_state.step = 1
 if "show_invite" not in st.session_state: st.session_state.show_invite = False
 if "current_token" not in st.session_state: st.session_state.current_token = None
-if "call_status" not in st.session_state: st.session_state.call_status = "connected" # 預設接通
+if "call_status" not in st.session_state: st.session_state.call_status = "ringing"
 if "friend_stage" not in st.session_state: st.session_state.friend_stage = "listen"
 
 # ==========================================
-# 4. 路由與攔截邏輯 (Router)
+# 4. 自動登入邏輯 (Auto Login)
 # ==========================================
+# 只有在「未登入」且「沒有訪客Token」時才檢查
+if not st.session_state.user and not "token" in st.query_params:
+    time.sleep(0.1) # 等待 cookie manager 載入
+    cookies = cookie_manager.get_all()
+    access_token = cookies.get("sb_access_token")
+    refresh_token = cookies.get("sb_refresh_token")
+    
+    if access_token and refresh_token:
+        try:
+            # 嘗試用 Cookie 恢復 Session
+            res = supabase.auth.set_session(access_token, refresh_token)
+            if res and res.user:
+                st.session_state.user = res
+                st.rerun() # 成功恢復，重新整理頁面進入後台
+        except:
+            # 失敗代表 Token 過期，清除 Cookie
+            cookie_manager.delete("sb_access_token")
+            cookie_manager.delete("sb_refresh_token")
 
 # ==========================================
-# 處理 Google 登入回調 (OAuth Callback)
+# 5. 網址攔截邏輯
 # ==========================================
+
+# A. Google 登入回調 (?code=...)
 if "code" in st.query_params:
     try:
         code = st.query_params["code"]
-        
-        # 嘗試交換 Session
         res = supabase.auth.exchange_code_for_session({"auth_code": code})
-        
         if res and res.user:
             st.session_state.user = res
+            database.get_user_profile(supabase, res.user.id) # Init profile
             
-            # 初始化用戶資料
-            database.get_user_profile(supabase, res.user.id)
+            # 【關鍵】登入成功後，立刻寫入 Cookie (30天)
+            cookie_manager.set("sb_access_token", res.session.access_token, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
+            cookie_manager.set("sb_refresh_token", res.session.refresh_token, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
             
-            # 成功後，強制清除網址參數，避免重新整理時重複送 code 導致報錯
+            st.success("登入成功！")
             st.query_params.clear()
             st.rerun()
-            
     except Exception as e:
-        # 【關鍵修改】如果報錯，先檢查是否其實已經登入了 (Session已建立)
-        # 很多時候是因為 code 只能用一次，第二次刷新就會報錯，但其實 user 已經在庫裡了
-        session = supabase.auth.get_session()
-        if session:
-            st.session_state.user = session
+        st.toast("登入重試中...", icon="⏳")
+        # 嘗試檢查是否已登入
+        if supabase.auth.get_session():
             st.query_params.clear()
             st.rerun()
-        else:
-            # 真的失敗才顯示錯誤，但用 toast 取代 error 比較不嚇人
-            st.toast(f"登入重試中... ({str(e)})", icon="⚠️")
-            # 不清除參數，讓用戶可以手動再試一次或按上一頁
 
-# B. 處理訪客連結
+# B. 訪客 Token
 if "token" in st.query_params and not st.session_state.user and not st.session_state.guest_data:
     try:
         raw = st.query_params["token"]
@@ -90,18 +97,29 @@ if "token" in st.query_params and not st.session_state.user and not st.session_s
     except: pass
 
 # ==========================================
-# 介面渲染
+# 6. 介面渲染
 # ==========================================
 
 if st.session_state.guest_data:
     # 訪客模式
-    view_guest.render(supabase, client, teaser_db)
+    view_guest.render(supabase, client, None) # 暫時不傳 teaser_db
 
 elif not st.session_state.user:
-    # 登入畫面 (含 Google 按鈕)
+    # 登入畫面
     view_auth.render(supabase, cookie_manager)
 
 else:
     # 會員後台
-    view_member.render(supabase, client, question_db)
+    # C.1 登出邏輯：除了登出 Supabase，還要清除 Cookie
+    # 為了讓按鈕能操作，我們把登出邏輯封裝在 member 視圖裡，但這裡需要處理 cookie 清除
+    # 簡單做法：在 member.py 裡 return 一個訊號，或直接在那裡操作 supabase
+    # 這裡我們用一個簡單的 callback check
+    if st.session_state.get("logout_clicked"):
+        cookie_manager.delete("sb_access_token")
+        cookie_manager.delete("sb_refresh_token")
+        del st.session_state["logout_clicked"]
+        supabase.auth.sign_out()
+        st.session_state.user = None
+        st.rerun()
 
+    view_member.render(supabase, client, question_db)
