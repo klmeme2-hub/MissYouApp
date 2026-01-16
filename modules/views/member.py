@@ -5,7 +5,7 @@ from modules import ui, database, audio, config, gamification
 from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory
 
 def get_base64_encoded_image(image_path):
-    """將圖片轉為 Base64 (用於 HTML 顯示)"""
+    """將圖片轉為 Base64"""
     try:
         with open(image_path, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode('utf-8')
@@ -19,81 +19,45 @@ def render(supabase, client, question_db):
     user_id = st.session_state.user.user.id
     
     # ==========================================
-    # 1. Header (Logo + 標題) - 排版修復
+    # 1. Header (Logo + 標題) - 分欄版
     # ==========================================
     
-    # 準備 Logo
-    logo_html = ""
-    if os.path.exists("logo.png"):
-        img_b64 = get_base64_encoded_image("logo.png")
-        if img_b64:
-            # 圖片樣式：填滿容器，圓角
-            logo_html = f"""
-            <img src="data:image/png;base64,{img_b64}" 
-                 style="width: 100%; height: auto; border-radius: 12px; display: block;">
-            """
+    # 15% 放 Logo，85% 放文字，垂直置中對齊
+    c_logo, c_text = st.columns([1.5, 8.5], vertical_alignment="center")
     
-    if not logo_html:
-        logo_html = '<span style="font-size: 50px;">♾️</span>'
+    # --- 左欄：Logo ---
+    with c_logo:
+        if os.path.exists("logo.png"):
+            # 直接使用 st.image，簡單又不會錯
+            st.image("logo.png", use_container_width=True)
+        else:
+            st.markdown("<div style='font-size:50px; text-align:center;'>♾️</div>", unsafe_allow_html=True)
 
-    # 【關鍵修改】使用更嚴謹的 Flexbox 佈局
-    st.markdown(f"""
-    <div style="
-        display: flex; 
-        flex-direction: row;
-        align-items: center; 
-        gap: 25px; 
-        margin-bottom: 20px; 
-        padding-bottom: 15px;
-        border-bottom: 1px solid rgba(255,255,255,0.08);">
-        
-        <!-- Logo 區塊：固定寬度 90px，禁止縮放 (flex: 0 0 90px) -->
-        <div style="flex: 0 0 90px; width: 90px; display: flex; align-items: center; justify-content: center;">
-            {logo_html}
-        </div>
-        
-        <!-- 文字區塊：佔滿剩餘空間 (flex: 1)，並允許縮小 (min-width: 0) 以觸發換行 -->
-        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center;">
-            <h1 style="
-                font-size: 34px !important; 
-                font-weight: 800; 
-                margin: 0 0 5px 0 !important; 
-                padding: 0 !important; 
-                line-height: 1.1 !important;
-                white-space: nowrap; /* 標題不換行 */
-                background: linear-gradient(90deg, #FFFFFF, #A78BFA);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;">
-                EchoSoul · 聲紋ID刻錄室
-            </h1>
-            <p style="
-                font-size: 15px !important; 
-                color: #B0B0B0 !important; 
-                margin: 0 !important; 
-                font-weight: 400; 
-                line-height: 1.5 !important;
-                white-space: normal;"> <!-- 副標題允許換行 -->
-                這不僅僅是錄音，這是將你的聲紋數據化，作為你在數位世界唯一的身份識別
-            </p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # --- 右欄：標題文字 ---
+    with c_text:
+        # 【關鍵】HTML 字串完全靠左，沒有任何縮排
+        title_html = """
+<h1 style="font-size: 38px !important; font-weight: 800; margin: 0 !important; padding: 0 !important; line-height: 1.2 !important; background: linear-gradient(90deg, #FFFFFF, #A78BFA); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+EchoSoul · 聲紋ID刻錄室
+</h1>
+<p style="font-size: 15px !important; color: #B0B0B0 !important; margin: 5px 0 0 0 !important; font-weight: 400; line-height: 1.5 !important;">
+這不僅僅是錄音，這是將你的聲紋數據化，作為你在數位世界唯一的身份識別
+</p>
+"""
+        st.markdown(title_html, unsafe_allow_html=True)
     
+    # 增加一點底部間距
+    st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+
     # ==========================================
-    # 2. 狀態列
+    # 2. 控制台 (角色選擇 + 生成按鈕)
     # ==========================================
     
-    # 計算相似度
-    sim_score, sim_hint, sim_gain = gamification.calculate_similarity(supabase, user_id, "friend") # 預設先抓朋友分數，或動態抓
-    
-    # 注意：這裡我們先渲染控制台來決定 target_role，再算一次分數會比較準
-    # 但為了 UI 順序，我們先顯示一個預設或全域的分數，或者稍後刷新
-    
-    # 我們將「角色選擇」移到上方，這樣邏輯更順
+    # 為了計算狀態列的分數，我們先渲染控制台來確定 target_role
     allowed = ["朋友/死黨"]
     if tier != 'basic' or xp >= 20: allowed = list(config.ROLE_MAPPING.keys())
     
-    # 使用 columns 排版控制台
+    # 底部對齊
     c_role, c_btn = st.columns([7, 3], vertical_alignment="bottom")
     
     with c_role:
@@ -106,10 +70,14 @@ def render(supabase, client, question_db):
             st.session_state.current_token = token
             st.session_state.show_invite = True
 
-    # 重新計算所選角色的相似度
+    # ==========================================
+    # 3. 狀態列 (放在控制台下方)
+    # ==========================================
+    
+    # 計算相似度
     sim_score, sim_hint, sim_gain = gamification.calculate_similarity(supabase, user_id, target_role)
-
-    # 顯示狀態列 (放在控制台下方)
+    
+    # 顯示狀態列
     ui.render_status_bar(tier, energy, xp, audio.get_tts_engine_type(profile), sim_score, sim_hint, sim_gain)
     
     # 提示訊息
