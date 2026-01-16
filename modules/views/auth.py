@@ -3,11 +3,7 @@ import datetime
 import os
 from modules import auth, database
 
-# 【修改】只接收 current_cookies (資料字典)，不接收 cookie_manager 物件
 def render(supabase, cookie_manager, current_cookies):
-    
-    # 建立一個專用的 Manager 來負責寫入，使用不同的 key 避免衝突
-    # (雖然本頁面這次沒用到寫入，但保留結構以便擴充)
     
     # 讀取預設值
     saved_email = ""
@@ -18,74 +14,74 @@ def render(supabase, cookie_manager, current_cookies):
     
     # --- 左側：品牌形象區 (Brand) ---
     with col1:
-        # 使用 Flexbox 排版：左邊是白色 Logo 塊，右邊是標題群組
+        # 【關鍵修正】這裡的 HTML 字串全部靠左對齊，不能有任何縮排
         html_content = """
-        <div style="padding-top: 40px; padding-right: 20px;">
-            
-            <div style="display: flex; gap: 25px; align-items: flex-start; margin-bottom: 30px;">
-                <!-- 白色 Logo 塊 -->
-                <div style="
-                    background: white; 
-                    width: 80px; 
-                    height: 80px; 
-                    border-radius: 18px; 
-                    display: flex; 
-                    align-items: center; 
-                    justify-content: center; 
-                    box-shadow: 0 0 25px rgba(167, 139, 250, 0.15);
-                    flex-shrink: 0;">
-                    <span style="font-size: 45px;">♾️</span>
-                </div>
-                
-                <!-- 標題群組 -->
-                <div>
-                    <h1 style="
-                        font-size: 56px !important; 
-                        font-weight: 800; 
-                        background: linear-gradient(135deg, #FFFFFF 0%, #A78BFA 100%);
-                        -webkit-background-clip: text;
-                        -webkit-text-fill-color: transparent;
-                        margin: 0;
-                        line-height: 1.1;">
-                        EchoSoul
-                    </h1>
-                    <h3 style="
-                        color: #94A3B8 !important; 
-                        font-size: 24px !important; 
-                        font-weight: 400; 
-                        margin-top: 5px;
-                        margin-bottom: 10px;
-                        letter-spacing: 2px;">
-                        複刻你的數位聲紋
-                    </h3>
-                    <p style="
-                        font-family: 'Courier New', monospace; 
-                        color: #A78BFA; 
-                        font-weight: 600; 
-                        font-size: 16px; 
-                        margin: 0;
-                        letter-spacing: 1px;">
-                        Voice remains, Soul echoes.
-                    </p>
-                </div>
-            </div>
-            
-            <!-- 描述卡片 (移除重複的 Slogan) -->
-            <div style="
-                font-size: 18px; 
-                line-height: 2.0; 
-                color: #E2E8F0; 
-                font-weight: 300; 
-                background: rgba(255, 255, 255, 0.03); 
-                padding: 30px; 
-                border-radius: 16px; 
-                border-left: 4px solid #A78BFA;">
-                
-                <p>EchoSoul 利用最新的 AI 技術，為您鎸刻聲紋，將這份溫暖永久保存在元宇宙中。</p>
-                <p style="margin-top: 15px;">無論距離多遠，無論時間多久，只要點開，我就在。</p>
-            </div>
+<div style="padding-top: 40px; padding-right: 20px;">
+    
+    <div style="display: flex; gap: 25px; align-items: flex-start; margin-bottom: 30px;">
+        <!-- 白色 Logo 塊 -->
+        <div style="
+            background: white; 
+            width: 80px; 
+            height: 80px; 
+            border-radius: 18px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            box-shadow: 0 0 25px rgba(167, 139, 250, 0.15);
+            flex-shrink: 0;">
+            <span style="font-size: 45px;">♾️</span>
         </div>
-        """
+        
+        <!-- 標題群組 -->
+        <div>
+            <h1 style="
+                font-size: 56px !important; 
+                font-weight: 800; 
+                background: linear-gradient(135deg, #FFFFFF 0%, #A78BFA 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                margin: 0;
+                line-height: 1.1;">
+                EchoSoul
+            </h1>
+            <h3 style="
+                color: #94A3B8 !important; 
+                font-size: 24px !important; 
+                font-weight: 400; 
+                margin-top: 5px;
+                margin-bottom: 10px;
+                letter-spacing: 2px;">
+                複刻你的數位聲紋
+            </h3>
+            <p style="
+                font-family: 'Courier New', monospace; 
+                color: #A78BFA; 
+                font-weight: 600; 
+                font-size: 16px; 
+                margin: 0;
+                letter-spacing: 1px;">
+                Voice remains, Soul echoes.
+            </p>
+        </div>
+    </div>
+    
+    <!-- 描述卡片 -->
+    <div style="
+        font-size: 18px; 
+        line-height: 2.0; 
+        color: #E2E8F0; 
+        font-weight: 300; 
+        background: rgba(255, 255, 255, 0.03); 
+        padding: 30px; 
+        border-radius: 16px; 
+        border-left: 4px solid #A78BFA;">
+        
+        <p>EchoSoul 利用最新的 AI 技術，為您鎸刻聲紋，將這份溫暖永久保存在元宇宙中。</p>
+        <p style="margin-top: 15px;">無論距離多遠，無論時間多久，只要點開，我就在。</p>
+    </div>
+</div>
+"""
         st.markdown(html_content, unsafe_allow_html=True)
 
     # --- 右側：登入註冊區 ---
