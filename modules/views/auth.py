@@ -3,27 +3,28 @@ import datetime
 import os
 import base64
 from modules import auth, database
-import extra_streamlit_components as stx
+# 移除 stx 引用，因為我們不需要在這裡新建它了
+# import extra_streamlit_components as stx 
 
 def get_base64_encoded_image(image_path):
+    """將圖片轉換為 Base64 編碼，以便嵌入 HTML"""
     try:
         with open(image_path, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode('utf-8')
     except:
         return None
 
+# 【關鍵】直接使用傳入的 cookie_manager，不要自己 new
 def render(supabase, cookie_manager, current_cookies):
     
-    # 建立一個專用的 Manager 來負責寫入
-    auth_cookie_manager = stx.CookieManager(key="auth_view_mgr")
-
+    # 讀取預設值
     saved_email = ""
     if current_cookies:
         saved_email = current_cookies.get("member_email", "")
     
     col1, col2 = st.columns([6, 4], gap="large")
     
-    # --- 左側：品牌形象區 ---
+    # --- 左側：品牌形象區 (Brand) ---
     with col1:
         
         # 1. 準備 Logo
@@ -36,26 +37,28 @@ def render(supabase, cookie_manager, current_cookies):
         if not logo_html:
             logo_html = '<span style="font-size: 50px;">♾️</span>'
 
-        # 【關鍵修正】：這裡的 HTML 每一行都必須 "頂格" (靠最左邊)，不能有空格！
         html_content = f"""
 <div style="padding-top: 40px; padding-right: 20px;">
-<div style="display: flex; gap: 25px; align-items: center; margin-bottom: 40px;">
-<div style="background: white; width: 110px; height: 110px; border-radius: 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 30px rgba(167, 139, 250, 0.2); flex-shrink: 0;">
-{logo_html}
-</div>
-<div style="display: flex; flex-direction: column; justify-content: center;">
-<h3 style="color: #FFFFFF !important; font-size: 32px !important; font-weight: 700; margin: 0; line-height: 1.2; letter-spacing: 1px;">
-複刻你的數位聲紋
-</h3>
-<p style="font-family: 'Courier New', monospace; color: #A78BFA; font-weight: 600; font-size: 16px; margin-top: 8px; letter-spacing: 1px;">
-Voice remains, Soul echoes.
-</p>
-</div>
-</div>
-<div style="font-size: 18px; line-height: 2.0; color: #E2E8F0; font-weight: 300; background: rgba(255, 255, 255, 0.03); padding: 30px; border-radius: 16px; border-left: 4px solid #A78BFA;">
-<p>EchoSoul 利用最新的 AI 技術，為您鎸刻聲紋，將這份溫暖永久保存在元宇宙中。</p>
-<p style="margin-top: 15px;">無論距離多遠，無論時間多久，只要點開，我就在。</p>
-</div>
+    
+    <div style="display: flex; gap: 25px; align-items: center; margin-bottom: 40px;">
+        <div style="background: white; width: 110px; height: 110px; border-radius: 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 30px rgba(167, 139, 250, 0.2); flex-shrink: 0;">
+            {logo_html}
+        </div>
+        
+        <div style="display: flex; flex-direction: column; justify-content: center;">
+            <h3 style="color: #FFFFFF !important; font-size: 32px !important; font-weight: 700; margin: 0; line-height: 1.2; letter-spacing: 1px;">
+                複刻你的數位聲紋
+            </h3>
+            <p style="font-family: 'Courier New', monospace; color: #A78BFA; font-weight: 600; font-size: 16px; margin-top: 8px; letter-spacing: 1px;">
+                Voice remains, Soul echoes.
+            </p>
+        </div>
+    </div>
+    
+    <div style="font-size: 18px; line-height: 2.0; color: #E2E8F0; font-weight: 300; background: rgba(255, 255, 255, 0.03); padding: 30px; border-radius: 16px; border-left: 4px solid #A78BFA;">
+        <p>EchoSoul 利用最新的 AI 技術，為您鎸刻聲紋，將這份溫暖永久保存在元宇宙中。</p>
+        <p style="margin-top: 15px;">無論距離多遠，無論時間多久，只要點開，我就在。</p>
+    </div>
 </div>
 """
         st.markdown(html_content, unsafe_allow_html=True)
@@ -79,12 +82,16 @@ Voice remains, Soul echoes.
                     if st.form_submit_button("登入", use_container_width=True):
                         res = auth.login_user(supabase, le, lp)
                         if res and res.user:
+                            # 【修正】直接使用傳進來的 cookie_manager 寫入
                             expires = datetime.datetime.now() + datetime.timedelta(days=30)
-                            auth_cookie_manager.set("member_email", le, expires_at=expires)
-                            auth_cookie_manager.set("sb_access_token", res.session.access_token, expires_at=expires)
-                            auth_cookie_manager.set("sb_refresh_token", res.session.refresh_token, expires_at=expires)
+                            
+                            # 這裡使用 main_cookie_mgr (從 app.py 傳來的)
+                            cookie_manager.set("member_email", le, expires_at=expires)
+                            cookie_manager.set("sb_access_token", res.session.access_token, expires_at=expires)
+                            cookie_manager.set("sb_refresh_token", res.session.refresh_token, expires_at=expires)
                             
                             st.session_state.user = res
+                            st.success("登入成功！")
                             st.rerun()
                         else:
                             st.error("登入失敗")
