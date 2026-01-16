@@ -8,7 +8,7 @@ from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory, tab_conf
 import extra_streamlit_components as stx
 
 # ==========================================
-# 應用程式：EchoSoul (SaaS Stable - Fix Duplicate Key)
+# 應用程式：EchoSoul (SaaS Stable - Fix NameError)
 # ==========================================
 
 # 1. UI 設定
@@ -16,10 +16,16 @@ st.set_page_config(page_title="EchoSoul", page_icon="♾️", layout="centered")
 ui.load_css()
 
 # 2. 系統初始化
-# 這是主程式用的 Reader (只讀取，不寫入)
+# 這裡使用 key="main" 確保這是主程式專用的管理器
 cookie_manager = stx.CookieManager(key="main_cookie_mgr")
-time.sleep(0.1) 
-all_cookies = cookie_manager.get_all()
+
+# 【關鍵修正】確保變數一定有被定義，避免 NameError
+all_cookies = {} 
+time.sleep(0.1) # 等待載入
+try:
+    all_cookies = cookie_manager.get_all()
+except:
+    pass # 如果讀取失敗，就維持空字典，不讓程式崩潰
 
 if "SUPABASE_URL" not in st.secrets: st.stop()
 supabase = database.init_supabase()
@@ -62,6 +68,7 @@ if not st.session_state.user and "code" not in st.query_params and "token" not i
                     database.get_user_profile(supabase, res.user.id)
                     st.rerun()
             except:
+                # Token 失效，清除 Cookie
                 cookie_manager.delete("sb_access_token")
                 cookie_manager.delete("sb_refresh_token")
 
@@ -113,15 +120,20 @@ if "token" in st.query_params and not st.session_state.user and not st.session_s
 # ==========================================
 
 if st.session_state.guest_data:
+    # 訪客模式
+    from modules.views import guest as view_guest
     view_guest.render(supabase, client, teaser_db)
 
 elif not st.session_state.user:
-    # 【關鍵修改】不再傳入 cookie_manager，只傳入讀取到的 all_cookies
+    # 登入畫面 (確保變數存在)
+    from modules.views import auth as view_auth
     view_auth.render(supabase, all_cookies)
 
 else:
-    # C. 會員後台
-    # 登出邏輯 (這裡使用 main_cookie_mgr 來刪除，因為它是父層)
+    # 會員後台
+    from modules.views import member as view_member
+    
+    # 登出邏輯 (由主程式負責清理 Cookie)
     if st.session_state.get("logout_clicked"):
         cookie_manager.delete("sb_access_token")
         cookie_manager.delete("sb_refresh_token")
