@@ -19,7 +19,7 @@ def render(supabase, client, question_db):
     user_id = st.session_state.user.user.id
     
     # ==========================================
-    # 1. Header (Logo + 標題) - 樣式修正
+    # 1. Header (Logo + 標題) - 排版修復
     # ==========================================
     
     # 準備 Logo
@@ -27,38 +27,40 @@ def render(supabase, client, question_db):
     if os.path.exists("logo.png"):
         img_b64 = get_base64_encoded_image("logo.png")
         if img_b64:
-            # 【修改點】加大尺寸至 90px，增加圓角與陰影，強制不被壓縮
+            # 圖片樣式：填滿容器，圓角
             logo_html = f"""
             <img src="data:image/png;base64,{img_b64}" 
-                 style="width: 90px; height: auto; object-fit: contain; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                 style="width: 100%; height: auto; border-radius: 12px; display: block;">
             """
     
     if not logo_html:
-        logo_html = '<span style="font-size: 60px;">♾️</span>'
+        logo_html = '<span style="font-size: 50px;">♾️</span>'
 
-    # 【修改點】優化 Flexbox 結構，確保垂直置中與間距
+    # 【關鍵修改】使用更嚴謹的 Flexbox 佈局
     st.markdown(f"""
     <div style="
         display: flex; 
+        flex-direction: row;
         align-items: center; 
         gap: 25px; 
-        margin-bottom: 25px; 
-        padding-bottom: 10px;
-        border-bottom: 1px solid rgba(255,255,255,0.05);">
+        margin-bottom: 20px; 
+        padding-bottom: 15px;
+        border-bottom: 1px solid rgba(255,255,255,0.08);">
         
-        <!-- Logo 區塊：設定 flex-shrink: 0 防止被擠壓 -->
-        <div style="flex-shrink: 0;">
+        <!-- Logo 區塊：固定寬度 90px，禁止縮放 (flex: 0 0 90px) -->
+        <div style="flex: 0 0 90px; width: 90px; display: flex; align-items: center; justify-content: center;">
             {logo_html}
         </div>
         
-        <!-- 文字區塊 -->
-        <div style="display: flex; flex-direction: column; justify-content: center;">
+        <!-- 文字區塊：佔滿剩餘空間 (flex: 1)，並允許縮小 (min-width: 0) 以觸發換行 -->
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center;">
             <h1 style="
-                font-size: 38px !important; 
+                font-size: 34px !important; 
                 font-weight: 800; 
-                margin: 0 !important; 
+                margin: 0 0 5px 0 !important; 
                 padding: 0 !important; 
-                line-height: 1.2 !important;
+                line-height: 1.1 !important;
+                white-space: nowrap; /* 標題不換行 */
                 background: linear-gradient(90deg, #FFFFFF, #A78BFA);
                 -webkit-background-clip: text;
                 -webkit-text-fill-color: transparent;">
@@ -67,9 +69,10 @@ def render(supabase, client, question_db):
             <p style="
                 font-size: 15px !important; 
                 color: #B0B0B0 !important; 
-                margin: 5px 0 0 0 !important; 
+                margin: 0 !important; 
                 font-weight: 400; 
-                line-height: 1.4 !important;">
+                line-height: 1.5 !important;
+                white-space: normal;"> <!-- 副標題允許換行 -->
                 這不僅僅是錄音，這是將你的聲紋數據化，作為你在數位世界唯一的身份識別
             </p>
         </div>
@@ -77,13 +80,20 @@ def render(supabase, client, question_db):
     """, unsafe_allow_html=True)
     
     # ==========================================
-    # 2. 控制台 (角色選擇 + 生成按鈕)
+    # 2. 狀態列
     # ==========================================
     
+    # 計算相似度
+    sim_score, sim_hint, sim_gain = gamification.calculate_similarity(supabase, user_id, "friend") # 預設先抓朋友分數，或動態抓
+    
+    # 注意：這裡我們先渲染控制台來決定 target_role，再算一次分數會比較準
+    # 但為了 UI 順序，我們先顯示一個預設或全域的分數，或者稍後刷新
+    
+    # 我們將「角色選擇」移到上方，這樣邏輯更順
     allowed = ["朋友/死黨"]
     if tier != 'basic' or xp >= 20: allowed = list(config.ROLE_MAPPING.keys())
     
-    # 底部對齊，確保按鈕跟選單平視
+    # 使用 columns 排版控制台
     c_role, c_btn = st.columns([7, 3], vertical_alignment="bottom")
     
     with c_role:
@@ -96,14 +106,10 @@ def render(supabase, client, question_db):
             st.session_state.current_token = token
             st.session_state.show_invite = True
 
-    # ==========================================
-    # 3. 狀態列 (放在控制台下方，視覺流線更順)
-    # ==========================================
-    
-    # 計算相似度
+    # 重新計算所選角色的相似度
     sim_score, sim_hint, sim_gain = gamification.calculate_similarity(supabase, user_id, target_role)
-    
-    # 顯示狀態列
+
+    # 顯示狀態列 (放在控制台下方)
     ui.render_status_bar(tier, energy, xp, audio.get_tts_engine_type(profile), sim_score, sim_hint, sim_gain)
     
     # 提示訊息
@@ -124,7 +130,7 @@ def render(supabase, client, question_db):
         st.text_area("建議文案", value=copy_text)
         if st.button("❌ 關閉"): st.session_state.show_invite = False
     
-    st.markdown('<div style="margin-top: 20px;"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="compact-divider"></div>', unsafe_allow_html=True)
 
     # ==========================================
     # 4. Tab 分頁
@@ -153,6 +159,5 @@ def render(supabase, client, question_db):
         
     with c_logout:
         if st.button("登出", key="footer_logout", use_container_width=True):
-            # 這裡只設定狀態，由 app.py 執行登出
             st.session_state.logout_clicked = True
             st.rerun()
