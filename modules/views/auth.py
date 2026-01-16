@@ -29,36 +29,69 @@ def render(supabase, cookie_manager, current_cookies):
         if os.path.exists("logo.png"):
             img_b64 = get_base64_encoded_image("logo.png")
             if img_b64:
-                # 顯示真實圖片 (設定最大寬度以防圖片太大)
-                logo_html = f'<img src="data:image/png;base64,{img_b64}" style="width: 80px; height: auto; object-fit: contain;">'
+                # 顯示真實圖片
+                logo_html = f'<img src="data:image/png;base64,{img_b64}" style="width: 80%; height: auto; object-fit: contain;">'
         
         # 如果沒圖片，顯示 Emoji 備案
         if not logo_html:
-            logo_html = '<span style="font-size: 45px;">♾️</span>'
+            logo_html = '<span style="font-size: 50px;">♾️</span>'
 
-        # 2. 組合 HTML (關鍵：字串全部靠左，不要有縮排！)
+        # 2. 組合 HTML (移除 H1 EchoSoul，強調圖形與副標)
         html_content = f"""
 <div style="padding-top: 40px; padding-right: 20px;">
-<div style="display: flex; gap: 25px; align-items: flex-start; margin-bottom: 30px;">
-<div style="width: 80px; display: flex; justify-content: center; align-items: center;">
-{logo_html}
-</div>
-<div>
-<h1 style="font-size: 56px !important; font-weight: 800; background: linear-gradient(135deg, #FFFFFF 0%, #A78BFA 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; line-height: 1.1;">
-EchoSoul
-</h1>
-<h3 style="color: #94A3B8 !important; font-size: 24px !important; font-weight: 400; margin-top: 5px; margin-bottom: 10px; letter-spacing: 2px;">
-複刻你的數位聲紋
-</h3>
-<p style="font-family: 'Courier New', monospace; color: #A78BFA; font-weight: 600; font-size: 16px; margin: 0; letter-spacing: 1px;">
-Voice remains, Soul echoes.
-</p>
-</div>
-</div>
-<div style="font-size: 18px; line-height: 2.0; color: #E2E8F0; font-weight: 300; background: rgba(255, 255, 255, 0.03); padding: 30px; border-radius: 16px; border-left: 4px solid #A78BFA;">
-<p>EchoSoul 利用最新的 AI 技術，為您鎸刻聲紋，將這份溫暖永久保存在元宇宙中。</p>
-<p style="margin-top: 15px;">無論距離多遠，無論時間多久，只要點開，我就在。</p>
-</div>
+    
+    <div style="display: flex; gap: 25px; align-items: center; margin-bottom: 40px;">
+        <!-- 白色 Logo 塊 -->
+        <div style="
+            background: white; 
+            width: 110px; 
+            height: 110px; 
+            border-radius: 24px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            box-shadow: 0 0 30px rgba(167, 139, 250, 0.2);
+            flex-shrink: 0;">
+            {logo_html}
+        </div>
+        
+        <!-- 文字群組 -->
+        <div style="display: flex; flex-direction: column; justify-content: center;">
+            <h3 style="
+                color: #FFFFFF !important; 
+                font-size: 32px !important; 
+                font-weight: 700; 
+                margin: 0;
+                line-height: 1.2;
+                letter-spacing: 1px;">
+                複刻你的數位聲紋
+            </h3>
+            <p style="
+                font-family: 'Courier New', monospace; 
+                color: #A78BFA; 
+                font-weight: 600; 
+                font-size: 16px; 
+                margin-top: 8px;
+                letter-spacing: 1px;">
+                Voice remains, Soul echoes.
+            </p>
+        </div>
+    </div>
+    
+    <!-- 描述卡片 -->
+    <div style="
+        font-size: 18px; 
+        line-height: 2.0; 
+        color: #E2E8F0; 
+        font-weight: 300; 
+        background: rgba(255, 255, 255, 0.03); 
+        padding: 30px; 
+        border-radius: 16px; 
+        border-left: 4px solid #A78BFA;">
+        
+        <p>EchoSoul 利用最新的 AI 技術，為您鎸刻聲紋，將這份溫暖永久保存在元宇宙中。</p>
+        <p style="margin-top: 15px;">無論距離多遠，無論時間多久，只要點開，我就在。</p>
+    </div>
 </div>
 """
         st.markdown(html_content, unsafe_allow_html=True)
@@ -70,11 +103,12 @@ Voice remains, Soul echoes.
         with st.container():
             st.subheader("👤 會員登入")
             
-            # Google 登入按鈕
+            # 準備 Google Auth URL
             auth_url = auth.get_google_auth_url(supabase)
             
             tab_l, tab_s = st.tabs(["登入", "註冊"])
             
+            # --- 分頁 1: 登入 (Email + Google) ---
             with tab_l:
                 with st.form("login_form"):
                     le = st.text_input("Email", value=saved_email)
@@ -83,7 +117,7 @@ Voice remains, Soul echoes.
                     if st.form_submit_button("登入", use_container_width=True):
                         res = auth.login_user(supabase, le, lp)
                         if res and res.user:
-                            # 寫入 Cookie
+                            # 寫入 Cookie (30天)
                             expires = datetime.datetime.now() + datetime.timedelta(days=30)
                             cookie_manager.set("member_email", le, expires_at=expires)
                             cookie_manager.set("sb_access_token", res.session.access_token, expires_at=expires)
@@ -94,7 +128,7 @@ Voice remains, Soul echoes.
                         else:
                             st.error("登入失敗")
 
-                # Google 按鈕
+                # Google 登入按鈕移至此處
                 st.markdown("""<div style="text-align:center; margin: 15px 0; color:#666; font-size:12px;">- OR -</div>""", unsafe_allow_html=True)
                 
                 if auth_url:
@@ -102,6 +136,7 @@ Voice remains, Soul echoes.
                 else:
                     st.error("Google 登入設定未完成")
 
+            # --- 分頁 2: 註冊 ---
             with tab_s:
                 st.caption("✨ 註冊即送 **免費體驗點數**")
                 se = st.text_input("Email", key="s_e")
