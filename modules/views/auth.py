@@ -1,15 +1,11 @@
 import streamlit as st
 import datetime
 from modules import auth, database
-import extra_streamlit_components as stx
 
-# 【修改】只接收 current_cookies (資料字典)，不接收 cookie_manager 物件
-def render(supabase, current_cookies):
+# 【修改】接收主程式傳來的 cookie_manager
+def render(supabase, cookie_manager, current_cookies):
     
-    # 建立一個專用的 Manager 來負責寫入，使用不同的 key 避免衝突
-    auth_cookie_manager = stx.CookieManager(key="auth_view_mgr")
-    
-    # 讀取預設值 (從主程式傳來的字典讀取，不重新 fetch)
+    # 從傳入的字典讀取，不重新 fetch
     saved_email = ""
     if current_cookies:
         saved_email = current_cookies.get("member_email", "")
@@ -18,32 +14,28 @@ def render(supabase, current_cookies):
     
     # --- 左側：品牌形象區 ---
     with col1:
-        html_content = """
-<div style="padding-top: 40px; padding-right: 20px;">
-<div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
-<span style="font-size: 48px;">♾️</span> 
-<h1 style="font-size: 48px !important; font-weight: 800; background: linear-gradient(135deg, #FFFFFF 0%, #A78BFA 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0px; line-height: 1.2;">
-EchoSoul
-</h1>
-</div>
-<h3 style="color: #94A3B8 !important; font-size: 24px !important; font-weight: 400; margin-top: 0; margin-bottom: 40px; letter-spacing: 2px;">
-複刻你的數位聲紋
-</h3>
-<div style="font-size: 18px; line-height: 2.0; color: #E2E8F0; font-weight: 300; background: rgba(255, 255, 255, 0.05); padding: 30px; border-radius: 16px; border-left: 4px solid #A78BFA;">
-<p>EchoSoul 利用最新的 AI 技術，為您鎸刻聲紋，將這份溫暖永久保存在元宇宙中。</p>
-<p>無論距離多遠，無論時間多久，只要點開，我就在。</p>
-<p style="margin-top: 25px; color: #A78BFA; font-weight: 600; font-family: 'Courier New', monospace;">
-Voice remains, Soul echoes.
-</p>
-</div>
-</div>
-"""
-        st.markdown(html_content, unsafe_allow_html=True)
+        # 檢查根目錄是否有 logo.png
+        import os
+        if os.path.exists("logo.png"):
+            c_logo, c_txt = st.columns([2, 8], vertical_alignment="center")
+            with c_logo: st.image("logo.png", use_container_width=True)
+            with c_txt:
+                st.markdown("""<h1 style="font-size: 56px !important; font-weight: 800; background: linear-gradient(135deg, #FFFFFF 0%, #A78BFA 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; line-height: 1.2;">EchoSoul</h1>""", unsafe_allow_html=True)
+        else:
+            st.markdown("""<div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;"><span style="font-size: 48px;">♾️</span> <h1 style="font-size: 48px !important; font-weight: 800; background: linear-gradient(135deg, #FFFFFF 0%, #A78BFA 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0px; line-height: 1.2;">EchoSoul</h1></div>""", unsafe_allow_html=True)
+
+        st.markdown("""
+        <h3 style="color: #94A3B8 !important; font-size: 24px !important; font-weight: 400; margin-top: 0; margin-bottom: 40px; letter-spacing: 2px;">複刻你的數位聲紋</h3>
+        <div style="font-size: 18px; line-height: 2.0; color: #E2E8F0; font-weight: 300; background: rgba(255, 255, 255, 0.05); padding: 30px; border-radius: 16px; border-left: 4px solid #A78BFA;">
+        <p>EchoSoul 利用最新的 AI 技術，為您鎸刻聲紋，將這份溫暖永久保存在元宇宙中。</p>
+        <p>無論距離多遠，無論時間多久，只要點開，我就在。</p>
+        <p style="margin-top: 25px; color: #A78BFA; font-weight: 600; font-family: 'Courier New', monospace;">Voice remains, Soul echoes.</p>
+        </div>
+        """, unsafe_allow_html=True)
 
     # --- 右側：登入註冊區 ---
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
-        
         with st.container():
             st.subheader("👤 會員登入")
             
@@ -65,11 +57,11 @@ Voice remains, Soul echoes.
                     if st.form_submit_button("登入", use_container_width=True):
                         res = auth.login_user(supabase, le, lp)
                         if res and res.user:
-                            # 寫入 Cookie
+                            # 【關鍵】使用傳入的 cookie_manager 寫入
                             expires = datetime.datetime.now() + datetime.timedelta(days=30)
-                            auth_cookie_manager.set("member_email", le, expires_at=expires)
-                            auth_cookie_manager.set("sb_access_token", res.session.access_token, expires_at=expires)
-                            auth_cookie_manager.set("sb_refresh_token", res.session.refresh_token, expires_at=expires)
+                            cookie_manager.set("member_email", le, expires_at=expires)
+                            cookie_manager.set("sb_access_token", res.session.access_token, expires_at=expires)
+                            cookie_manager.set("sb_refresh_token", res.session.refresh_token, expires_at=expires)
                             
                             st.session_state.user = res
                             st.success("登入成功！")
@@ -85,7 +77,8 @@ Voice remains, Soul echoes.
                 if st.button("註冊", use_container_width=True):
                     res = auth.signup_user(supabase, se, sp)
                     if res and res.user:
-                        database.get_user_profile(supabase, res.user.id)
+                        # 這裡使用 app.py 的邏輯去 init profile，或者這裡也可呼叫
+                        # database.get_user_profile(supabase, res.user.id)
                         st.session_state.user = res
                         st.success("註冊成功！")
                         st.rerun()
