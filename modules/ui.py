@@ -8,6 +8,7 @@ def load_css():
         .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp label, .stApp div, .stApp span, .stApp li {
             color: #FAFAFA !important; font-family: "Source Sans Pro", sans-serif;
         }
+        
         .block-container { padding-top: 1rem !important; padding-bottom: 5rem !important; max-width: 1000px !important; }
         hr { display: none !important; }
         .stElementContainer { margin-bottom: -10px !important; }
@@ -17,7 +18,7 @@ def load_css():
         .header-subtitle { font-size: 16px !important; color: #B0B0B0 !important; font-weight: 400; }
         .user-info-box { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; }
 
-        /* --- 3. 狀態列 (強制不換行) --- */
+        /* --- 3. 狀態列 (Status Bar) --- */
         .status-bar {
             background: #1A1C24;
             border: 1px solid #333;
@@ -28,11 +29,17 @@ def load_css():
             align-items: center;
             margin-bottom: 25px;
             width: 100%;
-            min-width: 600px; /* 強制最小寬度，避免擠壓 */
-            overflow-x: auto; /* 若螢幕太小則滑動 */
+            box-sizing: border-box;
         }
-        .status-left { font-size: 16px; font-weight: bold; color: #FFF; white-space: nowrap; }
-        .status-right { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 15px; white-space: nowrap; }
+        .status-left { 
+            font-size: 16px; 
+            font-weight: bold; 
+            color: #FFF; 
+            display: flex; 
+            align-items: center; 
+            gap: 15px; /* 左側元素間距 */
+        }
+        .status-right { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 15px; }
         
         /* Tooltip */
         .tooltip-container { position: relative; display: inline-block; cursor: help; }
@@ -40,26 +47,32 @@ def load_css():
         .val-energy { color: #FF4081; font-weight: bold; border-bottom: 1px dashed #FF4081; cursor: help; }
         
         .tooltip-text {
-            visibility: hidden; width: 180px; background-color: #333; color: #fff; text-align: center;
+            visibility: hidden; width: 200px; background-color: #333; color: #fff; text-align: center;
             border-radius: 6px; padding: 8px; position: absolute; z-index: 10;
-            top: 130%; left: 50%; margin-left: -90px; opacity: 0; transition: opacity 0.3s;
-            border: 1px solid #555; font-size: 12px !important;
+            top: 130%; left: 50%; margin-left: -100px; opacity: 0; transition: opacity 0.3s;
+            border: 1px solid #555; font-size: 12px !important; line-height: 1.4 !important;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
         .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
 
-        /* --- 4. 其他 --- */
+        /* --- 4. 其他元件 --- */
         input, textarea, .stSelectbox > div > div { background-color: #1F2229 !important; border: 1px solid #444 !important; color: white !important; }
         button[kind="primary"] { background-color: #FF4B4B !important; border: none; }
+        
         .question-card-active { background-color: #1A1C24; padding: 20px; border-radius: 12px; border: 2px solid #2196F3; text-align: center; margin-bottom: 20px; }
         .q-text { font-size: 20px; font-weight: bold; margin: 10px 0; }
+        .q-hint { font-size: 14px; color: #FCD34D; margin-top: 15px; font-weight: 500; }
+        
         .history-card { background-color: #262730; padding: 12px; border-radius: 8px; margin-bottom: 8px; }
         .dashboard-card { background-color: #1A1C24; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 10px; }
         .ai-bubble { background-color: #262730; padding: 15px; border-radius: 10px; border-left: 3px solid #FF4B4B; margin: 10px 0; }
+
         #MainMenu, footer {visibility: hidden;}
         
         @media (max-width: 600px) {
-            .status-bar { flex-direction: column; align-items: flex-start; gap: 10px; min-width: auto; }
+            .status-bar { flex-direction: column; align-items: flex-start; gap: 10px; }
             .user-info-box { display: none; }
+            .tooltip-container .tooltip-text { left: 0; margin-left: 0; }
         }
     </style>
     """, unsafe_allow_html=True)
@@ -73,21 +86,60 @@ def render_status_bar(tier, energy, xp, engine_type, similarity=0, sim_hint="", 
     if tier == "advanced": icon = "🔥"
     if tier == "eternal": icon = "♾️"
 
-    left_content = f"👉 正在與 <span style='color:#FFD700;'>{member_name}</span> 對話..." if is_guest else f"{icon} {tier_name}"
-    
-    xp_part = ""
-    if not is_guest:
+    # --- 左側內容 (會員等級 + 相似度) ---
+    if is_guest:
+        left_content = f"👉 您正在與 <span style='color:#FFD700; font-weight:bold;'>{member_name}</span> 對話中..."
+    else:
+        # 會員模式：等級 + 相似度
         tooltip = f"下一步：{sim_hint} (+{sim_gain}%)" if sim_gain > 0 else "已達目前等級上限"
-        sim_part = f"""<div class="tooltip-container"><span style="color:#BBB">相似度 <span class="sim-score">{similarity}%</span></span><span class="tooltip-text">{tooltip}</span></div>"""
-        xp_part = f"""{sim_part}&nbsp;&nbsp;<span style="color:#FFD700">⭐ XP: {xp}</span>"""
+        
+        # 【修改】相似度移到左邊
+        sim_html = f"""
+        <div class="tooltip-container">
+            <span style="color:#BBB; font-size:14px; font-weight:normal;">相似度 <span class="sim-score">{similarity}%</span></span>
+            <span class="tooltip-text">{tooltip}</span>
+        </div>
+        """
+        left_content = f"{icon} {tier_name} &nbsp;&nbsp; {sim_html}"
+    
+    # --- 右側內容 (電量 + XP + 引擎) ---
+    right_items = []
+    
+    # 電量 Tooltip
+    energy_tooltip = f"約還可對話 {energy} 句"
+    energy_html = f"""
+    <div class="tooltip-container">
+        <span>❤️ 電量: <span class="val-energy">{energy}</span></span>
+        <span class="tooltip-text">{energy_tooltip}</span>
+    </div>
+    """
+    right_items.append(energy_html)
 
-    engine_display = "" if is_guest else f"""<span style='margin-left:15px; color:#888; border-left:1px solid #444; padding-left:10px;'>| {engine_name}</span>"""
-    
-    # 這裡的 HTML 結構更加嚴謹，避免換行造成的解析錯誤
-    html = f"""<div class="status-bar"><div class="status-left">{left_content}</div><div class="status-right"><div class="tooltip-container"><span>❤️ 電量: <span class="val-energy">{energy}</span></span><span class="tooltip-text">約還可對話 {energy} 句</span></div>{xp_part}{engine_display}</div></div>"""
-    
+    if not is_guest:
+        xp_html = f"""<span style="margin-left:15px;">⭐ XP: <span style="color:#FFD700; font-weight:bold;">{xp}</span></span>"""
+        right_items.append(xp_html)
+        
+        engine_html = f"""<span style="margin-left:15px; color:#888; border-left:1px solid #444; padding-left:10px;">| {engine_name}</span>"""
+        right_items.append(engine_html)
+
+    right_content = "".join(right_items)
+
+    html = f"""
+    <div class="status-bar">
+        <div class="status-left">{left_content}</div>
+        <div class="status-right">{right_content}</div>
+    </div>
+    """
     st.markdown(html, unsafe_allow_html=True)
 
-def render_question_card(question, index, total): st.info(f"🎙️ **Q{index}/{total}: {question}**")
+def render_question_card(question, index, total, hint=""):
+    hint_html = f'<div class="q-hint">💡 提示：{hint}</div>' if hint else ""
+    st.markdown(f"""
+    <div class="question-card-active">
+        <div class="q-text">{question}</div>
+        {hint_html}
+    </div>
+    """, unsafe_allow_html=True)
+
 def render_history_card(q, a): st.markdown(f"> **Q:** {q}\n> **A:** {a[:30]}...")
 def render_dashboard_card(title, content): st.metric(label=title, value=content)
