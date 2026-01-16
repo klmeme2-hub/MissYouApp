@@ -19,7 +19,7 @@ def render(supabase, client, question_db):
     user_id = st.session_state.user.user.id
     
     # ==========================================
-    # 1. Header (Logo + 標題)
+    # 1. Header (Logo + 標題) - 樣式修正
     # ==========================================
     
     # 準備 Logo
@@ -27,35 +27,63 @@ def render(supabase, client, question_db):
     if os.path.exists("logo.png"):
         img_b64 = get_base64_encoded_image("logo.png")
         if img_b64:
-            # Logo 大小設定為 50px
-            logo_html = f'<img src="data:image/png;base64,{img_b64}" style="width: 50px; height: 50px; object-fit: contain; margin-right: 15px;">'
+            # 【修改點】加大尺寸至 90px，增加圓角與陰影，強制不被壓縮
+            logo_html = f"""
+            <img src="data:image/png;base64,{img_b64}" 
+                 style="width: 90px; height: auto; object-fit: contain; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+            """
+    
     if not logo_html:
-        logo_html = '<span style="font-size: 40px; margin-right: 15px;">♾️</span>'
+        logo_html = '<span style="font-size: 60px;">♾️</span>'
 
-    # 使用 HTML 佈局標題，不使用 columns，避免對齊問題
+    # 【修改點】優化 Flexbox 結構，確保垂直置中與間距
     st.markdown(f"""
-    <div style="display: flex; align-items: center; margin-bottom: 10px;">
-        {logo_html}
-        <div>
-            <div style="font-size: 32px; font-weight: 700; color: #FFF; line-height: 1.2;">聲紋ID刻錄室</div>
-            <div style="font-size: 14px; color: #B0B0B0; font-weight: 400;">這不僅僅是錄音，這是將你的聲紋數據化，作為你在數位世界唯一的身份識別</div>
+    <div style="
+        display: flex; 
+        align-items: center; 
+        gap: 25px; 
+        margin-bottom: 25px; 
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(255,255,255,0.05);">
+        
+        <!-- Logo 區塊：設定 flex-shrink: 0 防止被擠壓 -->
+        <div style="flex-shrink: 0;">
+            {logo_html}
+        </div>
+        
+        <!-- 文字區塊 -->
+        <div style="display: flex; flex-direction: column; justify-content: center;">
+            <h1 style="
+                font-size: 38px !important; 
+                font-weight: 800; 
+                margin: 0 !important; 
+                padding: 0 !important; 
+                line-height: 1.2 !important;
+                background: linear-gradient(90deg, #FFFFFF, #A78BFA);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;">
+                EchoSoul · 聲紋ID刻錄室
+            </h1>
+            <p style="
+                font-size: 15px !important; 
+                color: #B0B0B0 !important; 
+                margin: 5px 0 0 0 !important; 
+                font-weight: 400; 
+                line-height: 1.4 !important;">
+                這不僅僅是錄音，這是將你的聲紋數據化，作為你在數位世界唯一的身份識別
+            </p>
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    # 【已移除右上角 Email】
-
     # ==========================================
     # 2. 控制台 (角色選擇 + 生成按鈕)
     # ==========================================
     
-    # 為了計算相似度傳給狀態列，我們需要先知道目前選了誰
-    # 這裡調整順序：先渲染選擇器，再渲染狀態列
-    
     allowed = ["朋友/死黨"]
     if tier != 'basic' or xp >= 20: allowed = list(config.ROLE_MAPPING.keys())
     
-    # 使用 columns 排版控制台
+    # 底部對齊，確保按鈕跟選單平視
     c_role, c_btn = st.columns([7, 3], vertical_alignment="bottom")
     
     with c_role:
@@ -63,20 +91,19 @@ def render(supabase, client, question_db):
         target_role = config.ROLE_MAPPING[disp_role]
     
     with c_btn:
-        # 生成邀請卡按鈕
         if st.button("🎁 生成邀請卡", type="primary", use_container_width=True):
             token = database.create_share_token(supabase, target_role)
             st.session_state.current_token = token
             st.session_state.show_invite = True
 
     # ==========================================
-    # 3. 狀態列 (現在可以正確計算相似度了)
+    # 3. 狀態列 (放在控制台下方，視覺流線更順)
     # ==========================================
     
     # 計算相似度
     sim_score, sim_hint, sim_gain = gamification.calculate_similarity(supabase, user_id, target_role)
     
-    # 顯示狀態列 (相似度已移至左側)
+    # 顯示狀態列
     ui.render_status_bar(tier, energy, xp, audio.get_tts_engine_type(profile), sim_score, sim_hint, sim_gain)
     
     # 提示訊息
@@ -90,7 +117,7 @@ def render(supabase, client, question_db):
         mn = pd.get('member_nickname', '我') if pd else '我'
         url = f"https://missyou.streamlit.app/?token={tk}_{mn}"
         
-        st.markdown('<div style="margin-top: 10px;"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="compact-divider"></div>', unsafe_allow_html=True)
         st.success(f"💌 邀請連結 ({disp_role})")
         copy_text = f"欸！點這個連結打電話給我：\n{url}"
         st.code(url)
@@ -122,7 +149,6 @@ def render(supabase, client, question_db):
     c_email, c_logout = st.columns([8, 2], vertical_alignment="center")
     
     with c_email:
-        # Email 顯示在這裡
         st.markdown(f"<div style='text-align:right; color:#666; font-size:14px;'>目前登入：{st.session_state.user.user.email}</div>", unsafe_allow_html=True)
         
     with c_logout:
