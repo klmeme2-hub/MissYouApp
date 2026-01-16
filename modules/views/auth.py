@@ -1,16 +1,15 @@
 import streamlit as st
 import datetime
 from modules import auth, database
-import extra_streamlit_components as stx # 引入套件
+import extra_streamlit_components as stx
 
-# 【修改】移除 cookie_manager 參數，只接收 supabase 和 current_cookies
+# 【修改】只接收 current_cookies (資料字典)，不接收 cookie_manager 物件
 def render(supabase, current_cookies):
     
-    # 【關鍵修復】在此處建立獨立的 Cookie Manager，使用不同的 Key 避免衝突
-    # 這個管理器專門用來「寫入」Cookie
-    auth_cookie_manager = stx.CookieManager(key="auth_cookie_handler")
+    # 建立一個專用的 Manager 來負責寫入，使用不同的 key 避免衝突
+    auth_cookie_manager = stx.CookieManager(key="auth_view_mgr")
     
-    # 讀取傳進來的 Cookie 填入預設值
+    # 讀取預設值 (從主程式傳來的字典讀取，不重新 fetch)
     saved_email = ""
     if current_cookies:
         saved_email = current_cookies.get("member_email", "")
@@ -48,7 +47,7 @@ Voice remains, Soul echoes.
         with st.container():
             st.subheader("👤 會員登入")
             
-            # Google 登入按鈕
+            # Google 登入
             auth_url = auth.get_google_auth_url(supabase)
             if auth_url:
                 st.link_button("G 使用 Google 帳號繼續", auth_url, type="primary", use_container_width=True)
@@ -66,16 +65,14 @@ Voice remains, Soul echoes.
                     if st.form_submit_button("登入", use_container_width=True):
                         res = auth.login_user(supabase, le, lp)
                         if res and res.user:
-                            # 【修改】使用獨立的 auth_cookie_manager 來寫入
+                            # 寫入 Cookie
                             expires = datetime.datetime.now() + datetime.timedelta(days=30)
-                            
                             auth_cookie_manager.set("member_email", le, expires_at=expires)
                             auth_cookie_manager.set("sb_access_token", res.session.access_token, expires_at=expires)
                             auth_cookie_manager.set("sb_refresh_token", res.session.refresh_token, expires_at=expires)
                             
                             st.session_state.user = res
                             st.success("登入成功！")
-                            # 不用 sleep，直接 rerun，因為 key 不同不會衝突
                             st.rerun()
                         else:
                             st.error("登入失敗")
