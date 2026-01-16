@@ -1,7 +1,16 @@
 import streamlit as st
 import datetime
 import os
+import base64
 from modules import auth, database
+
+def get_base64_encoded_image(image_path):
+    """將圖片轉換為 Base64 編碼，以便嵌入 HTML"""
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode('utf-8')
+    except:
+        return None
 
 def render(supabase, cookie_manager, current_cookies):
     
@@ -14,72 +23,42 @@ def render(supabase, cookie_manager, current_cookies):
     
     # --- 左側：品牌形象區 (Brand) ---
     with col1:
-        # 【關鍵修正】這裡的 HTML 字串全部靠左對齊，不能有任何縮排
-        html_content = """
+        
+        # 1. 準備 Logo (優先讀取 logo.png)
+        logo_html = ""
+        if os.path.exists("logo.png"):
+            img_b64 = get_base64_encoded_image("logo.png")
+            if img_b64:
+                # 顯示真實圖片 (設定最大寬度以防圖片太大)
+                logo_html = f'<img src="data:image/png;base64,{img_b64}" style="width: 80px; height: auto; object-fit: contain;">'
+        
+        # 如果沒圖片，顯示 Emoji 備案
+        if not logo_html:
+            logo_html = '<span style="font-size: 45px;">♾️</span>'
+
+        # 2. 組合 HTML (關鍵：字串全部靠左，不要有縮排！)
+        html_content = f"""
 <div style="padding-top: 40px; padding-right: 20px;">
-    
-    <div style="display: flex; gap: 25px; align-items: flex-start; margin-bottom: 30px;">
-        <!-- 白色 Logo 塊 -->
-        <div style="
-            background: white; 
-            width: 80px; 
-            height: 80px; 
-            border-radius: 18px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            box-shadow: 0 0 25px rgba(167, 139, 250, 0.15);
-            flex-shrink: 0;">
-            <span style="font-size: 45px;">♾️</span>
-        </div>
-        
-        <!-- 標題群組 -->
-        <div>
-            <h1 style="
-                font-size: 56px !important; 
-                font-weight: 800; 
-                background: linear-gradient(135deg, #FFFFFF 0%, #A78BFA 100%);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                margin: 0;
-                line-height: 1.1;">
-                EchoSoul
-            </h1>
-            <h3 style="
-                color: #94A3B8 !important; 
-                font-size: 24px !important; 
-                font-weight: 400; 
-                margin-top: 5px;
-                margin-bottom: 10px;
-                letter-spacing: 2px;">
-                複刻你的數位聲紋
-            </h3>
-            <p style="
-                font-family: 'Courier New', monospace; 
-                color: #A78BFA; 
-                font-weight: 600; 
-                font-size: 16px; 
-                margin: 0;
-                letter-spacing: 1px;">
-                Voice remains, Soul echoes.
-            </p>
-        </div>
-    </div>
-    
-    <!-- 描述卡片 -->
-    <div style="
-        font-size: 18px; 
-        line-height: 2.0; 
-        color: #E2E8F0; 
-        font-weight: 300; 
-        background: rgba(255, 255, 255, 0.03); 
-        padding: 30px; 
-        border-radius: 16px; 
-        border-left: 4px solid #A78BFA;">
-        
-        <p>EchoSoul 利用最新的 AI 技術，為您鎸刻聲紋，將這份溫暖永久保存在元宇宙中。</p>
-        <p style="margin-top: 15px;">無論距離多遠，無論時間多久，只要點開，我就在。</p>
-    </div>
+<div style="display: flex; gap: 25px; align-items: flex-start; margin-bottom: 30px;">
+<div style="width: 80px; display: flex; justify-content: center; align-items: center;">
+{logo_html}
+</div>
+<div>
+<h1 style="font-size: 56px !important; font-weight: 800; background: linear-gradient(135deg, #FFFFFF 0%, #A78BFA 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; line-height: 1.1;">
+EchoSoul
+</h1>
+<h3 style="color: #94A3B8 !important; font-size: 24px !important; font-weight: 400; margin-top: 5px; margin-bottom: 10px; letter-spacing: 2px;">
+複刻你的數位聲紋
+</h3>
+<p style="font-family: 'Courier New', monospace; color: #A78BFA; font-weight: 600; font-size: 16px; margin: 0; letter-spacing: 1px;">
+Voice remains, Soul echoes.
+</p>
+</div>
+</div>
+<div style="font-size: 18px; line-height: 2.0; color: #E2E8F0; font-weight: 300; background: rgba(255, 255, 255, 0.03); padding: 30px; border-radius: 16px; border-left: 4px solid #A78BFA;">
+<p>EchoSoul 利用最新的 AI 技術，為您鎸刻聲紋，將這份溫暖永久保存在元宇宙中。</p>
+<p style="margin-top: 15px;">無論距離多遠，無論時間多久，只要點開，我就在。</p>
+</div>
 </div>
 """
         st.markdown(html_content, unsafe_allow_html=True)
@@ -91,12 +70,11 @@ def render(supabase, cookie_manager, current_cookies):
         with st.container():
             st.subheader("👤 會員登入")
             
-            # 準備 Google Auth URL
+            # Google 登入按鈕
             auth_url = auth.get_google_auth_url(supabase)
             
             tab_l, tab_s = st.tabs(["登入", "註冊"])
             
-            # --- 分頁 1: 登入 (Email + Google) ---
             with tab_l:
                 with st.form("login_form"):
                     le = st.text_input("Email", value=saved_email)
@@ -105,7 +83,7 @@ def render(supabase, cookie_manager, current_cookies):
                     if st.form_submit_button("登入", use_container_width=True):
                         res = auth.login_user(supabase, le, lp)
                         if res and res.user:
-                            # 寫入 Cookie (30天)
+                            # 寫入 Cookie
                             expires = datetime.datetime.now() + datetime.timedelta(days=30)
                             cookie_manager.set("member_email", le, expires_at=expires)
                             cookie_manager.set("sb_access_token", res.session.access_token, expires_at=expires)
@@ -116,7 +94,7 @@ def render(supabase, cookie_manager, current_cookies):
                         else:
                             st.error("登入失敗")
 
-                # Google 登入按鈕移至此處
+                # Google 按鈕
                 st.markdown("""<div style="text-align:center; margin: 15px 0; color:#666; font-size:12px;">- OR -</div>""", unsafe_allow_html=True)
                 
                 if auth_url:
@@ -124,7 +102,6 @@ def render(supabase, cookie_manager, current_cookies):
                 else:
                     st.error("Google 登入設定未完成")
 
-            # --- 分頁 2: 註冊 ---
             with tab_s:
                 st.caption("✨ 註冊即送 **免費體驗點數**")
                 se = st.text_input("Email", key="s_e")
