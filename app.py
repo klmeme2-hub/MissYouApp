@@ -8,7 +8,7 @@ from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory, tab_conf
 import extra_streamlit_components as stx
 
 # ==========================================
-# 應用程式：EchoSoul (SaaS Beta 4.6 - Cookie Fix)
+# 應用程式：EchoSoul (SaaS Stable - Final Fix)
 # ==========================================
 
 # 1. UI 設定
@@ -16,8 +16,40 @@ st.set_page_config(page_title="EchoSoul", page_icon="♾️", layout="centered")
 ui.load_css()
 
 # 2. 系統初始化
-# 使用一個固定的 Key
-cookie_manager = stx.CookieManager(key="echosoul_cookie_mgr")
+cookie_manager = stx.CookieManager(key="main_cookie_mgr")
+
+# 檢查是否有登入寫入請求 (Proxy Pattern)
+if "pending_login_data" in st.session_state:
+    data = st.session_state.pending_login_data
+    expires = datetime.datetime.now() + datetime.timedelta(days=30)
+    
+    cookie_manager.set("member_email", data["email"], expires_at=expires)
+    cookie_manager.set("sb_access_token", data["access_token"], expires_at=expires)
+    cookie_manager.set("sb_refresh_token", data["refresh_token"], expires_at=expires)
+    
+    del st.session_state["pending_login_data"]
+    time.sleep(0.5)
+    st.rerun()
+
+# 處理登出請求
+if st.session_state.get("logout_clicked"):
+    cookie_manager.delete("sb_access_token")
+    cookie_manager.delete("sb_refresh_token")
+    cookie_manager.delete("member_email")
+    del st.session_state["logout_clicked"]
+    
+    # 這裡必須重新初始化 supabase 才能登出
+    if "SUPABASE_URL" in st.secrets:
+        sp = database.init_supabase()
+        sp.auth.sign_out()
+    
+    st.session_state.user = None
+    time.sleep(0.5)
+    st.rerun()
+
+# 讀取 Cookie
+time.sleep(0.1)
+all_cookies = cookie_manager.get_all()
 
 if "SUPABASE_URL" not in st.secrets: st.stop()
 supabase = database.init_supabase()
@@ -46,44 +78,7 @@ if "current_token" not in st.session_state: st.session_state.current_token = Non
 if "call_status" not in st.session_state: st.session_state.call_status = "connected"
 if "friend_stage" not in st.session_state: st.session_state.friend_stage = "listen"
 
-# ==========================================
-# 4. Cookie 寫入邏輯 (優先處理)
-# ==========================================
-# 這裡處理來自 auth.py 的登入請求
-# 【關鍵】如果執行了寫入，就直接 rerun，不要往下執行讀取，避免 DuplicateElementKey
-if "pending_login_data" in st.session_state:
-    data = st.session_state.pending_login_data
-    expires = datetime.datetime.now() + datetime.timedelta(days=30)
-    
-    # 為了安全，我們一次寫入一個，然後重整，雖然慢一點點但絕對穩定
-    # 或者嘗試一次寫入全部 (通常 stx 支援連續 set 但要小心)
-    cookie_manager.set("member_email", data["email"], expires_at=expires)
-    cookie_manager.set("sb_access_token", data["access_token"], expires_at=expires)
-    cookie_manager.set("sb_refresh_token", data["refresh_token"], expires_at=expires)
-    
-    del st.session_state["pending_login_data"]
-    time.sleep(0.5) # 等待瀏覽器寫入
-    st.rerun()
-
-# 處理登出請求
-if st.session_state.get("logout_clicked"):
-    cookie_manager.delete("sb_access_token")
-    cookie_manager.delete("sb_refresh_token")
-    cookie_manager.delete("member_email")
-    del st.session_state["logout_clicked"]
-    
-    supabase.auth.sign_out()
-    st.session_state.user = None
-    time.sleep(0.5)
-    st.rerun()
-
-# ==========================================
-# 5. Cookie 讀取邏輯 (只在非寫入狀態下執行)
-# ==========================================
-time.sleep(0.1) # 讓 Cookie Manager 準備好
-all_cookies = cookie_manager.get_all()
-
-# 自動登入檢查
+# 4. 自動登入邏輯
 if not st.session_state.user and "code" not in st.query_params and "token" not in st.query_params:
     if all_cookies:
         access_token = all_cookies.get("sb_access_token")
@@ -97,14 +92,9 @@ if not st.session_state.user and "code" not in st.query_params and "token" not i
                     database.get_user_profile(supabase, res.user.id)
                     st.rerun()
             except:
-                # Token 失效，觸發清除 (下次 rerun 會執行上面的 delete)
-                st.session_state.logout_clicked = True
-                st.rerun()
+                pass
 
-# ==========================================
-# 6. 網址與路由
-# ==========================================
-
+# 5. 網址參數攔截
 # A. Google 登入回調
 if "code" in st.query_params:
     try:
@@ -148,7 +138,7 @@ if "token" in st.query_params and not st.session_state.user and not st.session_s
     except: pass
 
 # ==========================================
-# 7. 介面渲染
+# 6. 介面渲染
 # ==========================================
 
 if st.session_state.guest_data:
@@ -157,7 +147,8 @@ if st.session_state.guest_data:
 
 elif not st.session_state.user:
     from modules.views import auth as view_auth
-    view_auth.render(supabase, cookie_manager, all_cookies)
+    # 【關鍵修正】這裡只傳入 2 個參數，不再傳入 cookie_manager
+    view_auth.render(supabase, all_cookies)
 
 else:
     from modules.views import member as view_member
