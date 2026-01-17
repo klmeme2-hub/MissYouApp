@@ -3,20 +3,17 @@ import datetime
 import os
 import base64
 from modules import auth, database
-import extra_streamlit_components as stx
 
 def get_base64_encoded_image(image_path):
     try:
         with open(image_path, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode('utf-8')
-    except:
-        return None
+    except: return None
 
-def render(supabase, cookie_manager, current_cookies):
-    # 【關鍵修復 1】建立一個獨立的 Cookie 管理器，專門用於寫入
-    # 使用 key="auth_writer" 避免與 app.py 的 key="main_cookie_mgr" 衝突
-    cookie_writer = stx.CookieManager(key="auth_writer")
-
+# 【修改】只接收 current_cookies 字典 (Read-only)
+def render(supabase, current_cookies):
+    
+    # 讀取預設值
     saved_email = ""
     if current_cookies:
         saved_email = current_cookies.get("member_email", "")
@@ -25,18 +22,13 @@ def render(supabase, cookie_manager, current_cookies):
     
     # --- 左側：品牌形象區 ---
     with col1:
-        
         logo_html = ""
         if os.path.exists("logo.png"):
             img_b64 = get_base64_encoded_image("logo.png")
             if img_b64:
                 logo_html = f'<img src="data:image/png;base64,{img_b64}" style="width: 80%; height: auto; object-fit: contain;">'
-        
-        if not logo_html:
-            logo_html = '<span style="font-size: 50px;">♾️</span>'
+        if not logo_html: logo_html = '<span style="font-size: 50px;">♾️</span>'
 
-        # 【關鍵修復 2】HTML 字串內容完全靠左，移除所有縮排
-        # 請確保從 <div... 到 .../div> 都是貼在編輯器的最左邊
         html_content = f"""
 <div style="padding-top: 40px; padding-right: 20px;">
 <div style="display: flex; gap: 25px; align-items: center; margin-bottom: 40px;">
@@ -79,15 +71,15 @@ Voice remains, Soul echoes.
                     if st.form_submit_button("登入", use_container_width=True):
                         res = auth.login_user(supabase, le, lp)
                         if res and res.user:
-                            # 【關鍵修復 3】使用 cookie_writer 寫入，而非 cookie_manager
-                            expires = datetime.datetime.now() + datetime.timedelta(days=30)
-                            cookie_writer.set("member_email", le, expires_at=expires)
-                            cookie_writer.set("sb_access_token", res.session.access_token, expires_at=expires)
-                            cookie_writer.set("sb_refresh_token", res.session.refresh_token, expires_at=expires)
-                            
+                            # 【關鍵】不直接寫入 Cookie，而是發送訊號給 app.py
+                            st.session_state.pending_login_data = {
+                                "email": le,
+                                "access_token": res.session.access_token,
+                                "refresh_token": res.session.refresh_token
+                            }
                             st.session_state.user = res
                             st.success("登入成功！")
-                            st.rerun()
+                            st.rerun() # 回到 app.py 處理 Cookie
                         else:
                             st.error("登入失敗")
 
