@@ -3,8 +3,10 @@ import json
 import time
 import datetime
 from openai import OpenAI
+
 from modules import ui, auth, database, audio, brain, config
 from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory, tab_config
+
 import extra_streamlit_components as stx
 
 # ==========================================
@@ -107,6 +109,7 @@ if "guest_data" not in st.session_state: st.session_state.guest_data = None
 if "step" not in st.session_state: st.session_state.step = 1
 if "show_invite" not in st.session_state: st.session_state.show_invite = False
 if "current_token" not in st.session_state: st.session_state.current_token = None
+
 if "call_status" not in st.session_state: st.session_state.call_status = "connected"
 if "friend_stage" not in st.session_state: st.session_state.friend_stage = "listen"
 
@@ -115,10 +118,12 @@ if "friend_stage" not in st.session_state: st.session_state.friend_stage = "list
 if "code" in st.query_params:
     try:
         code = st.query_params["code"]
+
         res = supabase.auth.exchange_code_for_session({"auth_code": code})
         
         if res and res.user:
             st.session_state.user = res
+
             database.get_user_profile(supabase, res.user.id)
             
             # 【關鍵】設定 Flag，讓上方邏輯去寫入 Cookie
@@ -142,6 +147,7 @@ if "code" in st.query_params:
             st.rerun()
 
 # B. 訪客 Token
+
 if "token" in st.query_params and not st.session_state.user and not st.session_state.guest_data:
     try:
         raw = st.query_params["token"]
@@ -168,4 +174,5 @@ elif not st.session_state.user:
 
 else:
     from modules.views import member as view_member
+
     view_member.render(supabase, client, question_db)
