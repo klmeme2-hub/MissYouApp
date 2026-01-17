@@ -8,46 +8,16 @@ from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory, tab_conf
 import extra_streamlit_components as stx
 
 # ==========================================
-# 應用程式：EchoSoul (SaaS Stable - Proxy Cookie Fix)
+# 應用程式：EchoSoul (SaaS Beta 4.6 - Cookie Fix)
 # ==========================================
 
 # 1. UI 設定
 st.set_page_config(page_title="EchoSoul", page_icon="♾️", layout="centered")
 ui.load_css()
 
-# 2. 系統初始化 (全域唯一 Cookie 管理器)
-cookie_manager = stx.CookieManager(key="main_cookie_mgr")
-
-# 【關鍵修復】: 統一在這裡處理 Cookie 寫入請求
-# 檢查是否有來自 auth.py 的登入請求
-if "pending_login_data" in st.session_state:
-    data = st.session_state.pending_login_data
-    expires = datetime.datetime.now() + datetime.timedelta(days=30)
-    
-    # 寫入 Cookie
-    cookie_manager.set("member_email", data["email"], expires_at=expires)
-    cookie_manager.set("sb_access_token", data["access_token"], expires_at=expires)
-    cookie_manager.set("sb_refresh_token", data["refresh_token"], expires_at=expires)
-    
-    # 清除請求並刷新
-    del st.session_state["pending_login_data"]
-    time.sleep(0.5)
-    st.rerun()
-
-# 檢查是否有登出請求
-if st.session_state.get("logout_clicked"):
-    cookie_manager.delete("sb_access_token")
-    cookie_manager.delete("sb_refresh_token")
-    cookie_manager.delete("member_email")
-    del st.session_state["logout_clicked"]
-    supabase = database.init_supabase() # 重新獲取 client
-    supabase.auth.sign_out()
-    st.session_state.user = None
-    st.rerun()
-
-# 讀取 Cookie 進行自動登入
-time.sleep(0.1)
-all_cookies = cookie_manager.get_all()
+# 2. 系統初始化
+# 使用一個固定的 Key
+cookie_manager = stx.CookieManager(key="echosoul_cookie_mgr")
 
 if "SUPABASE_URL" not in st.secrets: st.stop()
 supabase = database.init_supabase()
@@ -76,7 +46,44 @@ if "current_token" not in st.session_state: st.session_state.current_token = Non
 if "call_status" not in st.session_state: st.session_state.call_status = "connected"
 if "friend_stage" not in st.session_state: st.session_state.friend_stage = "listen"
 
-# 4. 自動登入邏輯
+# ==========================================
+# 4. Cookie 寫入邏輯 (優先處理)
+# ==========================================
+# 這裡處理來自 auth.py 的登入請求
+# 【關鍵】如果執行了寫入，就直接 rerun，不要往下執行讀取，避免 DuplicateElementKey
+if "pending_login_data" in st.session_state:
+    data = st.session_state.pending_login_data
+    expires = datetime.datetime.now() + datetime.timedelta(days=30)
+    
+    # 為了安全，我們一次寫入一個，然後重整，雖然慢一點點但絕對穩定
+    # 或者嘗試一次寫入全部 (通常 stx 支援連續 set 但要小心)
+    cookie_manager.set("member_email", data["email"], expires_at=expires)
+    cookie_manager.set("sb_access_token", data["access_token"], expires_at=expires)
+    cookie_manager.set("sb_refresh_token", data["refresh_token"], expires_at=expires)
+    
+    del st.session_state["pending_login_data"]
+    time.sleep(0.5) # 等待瀏覽器寫入
+    st.rerun()
+
+# 處理登出請求
+if st.session_state.get("logout_clicked"):
+    cookie_manager.delete("sb_access_token")
+    cookie_manager.delete("sb_refresh_token")
+    cookie_manager.delete("member_email")
+    del st.session_state["logout_clicked"]
+    
+    supabase.auth.sign_out()
+    st.session_state.user = None
+    time.sleep(0.5)
+    st.rerun()
+
+# ==========================================
+# 5. Cookie 讀取邏輯 (只在非寫入狀態下執行)
+# ==========================================
+time.sleep(0.1) # 讓 Cookie Manager 準備好
+all_cookies = cookie_manager.get_all()
+
+# 自動登入檢查
 if not st.session_state.user and "code" not in st.query_params and "token" not in st.query_params:
     if all_cookies:
         access_token = all_cookies.get("sb_access_token")
@@ -90,9 +97,14 @@ if not st.session_state.user and "code" not in st.query_params and "token" not i
                     database.get_user_profile(supabase, res.user.id)
                     st.rerun()
             except:
-                pass # Token失效不做動作，等待下一次寫入覆蓋
+                # Token 失效，觸發清除 (下次 rerun 會執行上面的 delete)
+                st.session_state.logout_clicked = True
+                st.rerun()
 
-# 5. 網址參數攔截
+# ==========================================
+# 6. 網址與路由
+# ==========================================
+
 # A. Google 登入回調
 if "code" in st.query_params:
     try:
@@ -103,14 +115,14 @@ if "code" in st.query_params:
             st.session_state.user = res
             database.get_user_profile(supabase, res.user.id)
             
-            # 【關鍵】Google 登入成功也走代理模式
+            # 設定旗標，觸發上方的寫入邏輯
             st.session_state.pending_login_data = {
                 "email": res.user.email,
                 "access_token": res.session.access_token,
                 "refresh_token": res.session.refresh_token
             }
             
-            st.success("Google 登入成功！")
+            st.success("登入成功！")
             st.query_params.clear()
             st.rerun()
     except Exception as e:
@@ -118,7 +130,7 @@ if "code" in st.query_params:
             st.query_params.clear()
             st.rerun()
         else:
-            st.toast("⚠️ 連線逾時，請重新點擊登入", icon="🔄")
+            st.toast("⚠️ 驗證逾時，請重新點擊登入", icon="🔄")
             st.query_params.clear()
             time.sleep(2)
             st.rerun()
@@ -136,20 +148,17 @@ if "token" in st.query_params and not st.session_state.user and not st.session_s
     except: pass
 
 # ==========================================
-# 6. 介面渲染
+# 7. 介面渲染
 # ==========================================
 
 if st.session_state.guest_data:
-    # A. 訪客模式
     from modules.views import guest as view_guest
     view_guest.render(supabase, client, teaser_db)
 
 elif not st.session_state.user:
-    # B. 登入畫面 (只傳入 cookies 字典供讀取)
     from modules.views import auth as view_auth
-    view_auth.render(supabase, all_cookies)
+    view_auth.render(supabase, cookie_manager, all_cookies)
 
 else:
-    # C. 會員後台
     from modules.views import member as view_member
     view_member.render(supabase, client, question_db)
