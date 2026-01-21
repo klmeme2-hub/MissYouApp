@@ -15,7 +15,11 @@ def get_google_auth_url(supabase):
             "provider": "google",
             "options": {
                 "redirect_to": redirect_url,
-                "skip_browser_redirect": True
+                "skip_browser_redirect": True,
+                "queryParams": {
+                    "access_type": "offline",
+                    "prompt": "consent"
+                }
             }
         })
         return res.url

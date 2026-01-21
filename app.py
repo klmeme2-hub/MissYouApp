@@ -123,55 +123,56 @@ if "code" in st.query_params:
         st.query_params.clear()
         st.rerun()
     
-    try:
-        # 標記此 code 已處理
-        st.session_state.last_processed_code = code
-        
-        res = supabase.auth.exchange_code_for_session({"auth_code": code})
-        
-        if res and res.user:
-            st.session_state.user = res
-            database.get_user_profile(supabase, res.user.id)
-            
-            # 設定 Flag，讓上方邏輯去寫入 Cookie
-            st.session_state.pending_login_data = {
-                "email": res.user.email,
-                "access_token": res.session.access_token,
-                "refresh_token": res.session.refresh_token
-            }
-            
-            st.success("Google 登入成功！")
-            st.query_params.clear()
-            st.rerun()
-        else:
-            # res 存在但沒有 user（不應發生）
-            st.error("❌ 登入回應異常，請重試")
-            st.query_params.clear()
-            
-    except Exception as e:
-        error_msg = str(e).lower()
-        
-        # 檢查是否已有有效 session（可能是重複請求）
+    with st.spinner("🔄 正在驗證身份與建立安全連線..."):
         try:
-            existing_session = supabase.auth.get_session()
-            if existing_session and existing_session.user:
-                st.session_state.user = existing_session
+            # 標記此 code 已處理
+            st.session_state.last_processed_code = code
+            
+            res = supabase.auth.exchange_code_for_session({"auth_code": code})
+            
+            if res and res.user:
+                st.session_state.user = res
+                database.get_user_profile(supabase, res.user.id)
+                
+                # 設定 Flag，讓上方邏輯去寫入 Cookie
+                st.session_state.pending_login_data = {
+                    "email": res.user.email,
+                    "access_token": res.session.access_token,
+                    "refresh_token": res.session.refresh_token
+                }
+                
+                st.success("Google 登入成功！")
                 st.query_params.clear()
                 st.rerun()
-        except:
-            pass
-        
-        # 根據錯誤類型給出不同提示
-        if "invalid" in error_msg or "expired" in error_msg or "consumed" in error_msg:
-            st.warning("⚠️ 驗證碼已過期或已使用，請重新點擊登入按鈕")
-        elif "pkce" in error_msg:
-            st.error("❌ PKCE 驗證失敗，請清除瀏覽器快取後重試")
-        else:
-            st.error(f"❌ 登入失敗: {str(e)[:100]}")
-        
-        st.query_params.clear()
-        time.sleep(3)
-        st.rerun()
+            else:
+                # res 存在但沒有 user（不應發生）
+                st.error("❌ 登入回應異常，請重試")
+                st.query_params.clear()
+                
+        except Exception as e:
+            error_msg = str(e).lower()
+            
+            # 檢查是否已有有效 session（可能是重複請求）
+            try:
+                existing_session = supabase.auth.get_session()
+                if existing_session and existing_session.user:
+                    st.session_state.user = existing_session
+                    st.query_params.clear()
+                    st.rerun()
+            except:
+                pass
+            
+            # 根據錯誤類型給出不同提示
+            if "invalid" in error_msg or "expired" in error_msg or "consumed" in error_msg:
+                st.warning("⚠️ 驗證碼已過期，正在重新導向...")
+            elif "pkce" in error_msg:
+                st.error("❌ 驗證連線中斷，請清除快取後重試")
+            else:
+                st.error(f"❌ 登入失敗: {str(e)[:100]}")
+            
+            st.query_params.clear()
+            time.sleep(2)
+            st.rerun()
 
 # B. 訪客 Token
 
