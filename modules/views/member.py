@@ -95,6 +95,7 @@ def render(supabase, client, question_db):
     
     with c_btn:
         if st.button("🎁 生成邀請卡", type="primary", use_container_width=True):
+            token = database.create_share_token(supabase, target_role)
             st.session_state.current_token = token
             st.session_state.show_invite = True
 

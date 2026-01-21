@@ -1,5 +1,6 @@
 import streamlit as st
 from modules import ui, database, audio
+import time
 
 def render(supabase, client, user_id, target_role, tier, xp, question_db):
     # 權限檢查
