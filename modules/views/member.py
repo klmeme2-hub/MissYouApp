@@ -76,17 +76,7 @@ def render(supabase, client, question_db):
     if tier != 'basic' or xp >= 20: allowed = list(config.ROLE_MAPPING.keys())
     
     # 使用玻璃擬態容器包裹控制區
-    st.markdown("""
-    <div style="
-        background: rgba(30, 32, 44, 0.6);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 12px;
-        padding: 20px;
-        margin-bottom: 25px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    ">
-    """, unsafe_allow_html=True)
+
     
     c_role, c_btn = st.columns([7, 3], vertical_alignment="bottom")
     
@@ -102,7 +92,7 @@ def render(supabase, client, question_db):
             st.session_state.show_invite = True
 
     # 閉合玻璃擬態容器
-    st.markdown("</div>", unsafe_allow_html=True)
+
 
     # ==========================================
     # 3. 狀態列 (放在控制台下方)
