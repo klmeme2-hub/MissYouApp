@@ -58,7 +58,12 @@ def render(supabase, cookie_manager, current_cookies):
         
         with st.container():
             st.subheader("👤 會員登入")
-            auth_url = auth.get_google_auth_url(supabase)
+            
+            # 【關鍵修復】快取 OAuth URL，避免每次重新執行時 URL 失效
+            if "google_auth_url" not in st.session_state or not st.session_state.google_auth_url:
+                st.session_state.google_auth_url = auth.get_google_auth_url(supabase)
+            auth_url = st.session_state.google_auth_url
+            
             tab_l, tab_s = st.tabs(["登入", "註冊"])
             
             # --- Email 登入 ---
@@ -70,7 +75,8 @@ def render(supabase, cookie_manager, current_cookies):
                     if st.form_submit_button("登入", use_container_width=True):
                         res = auth.login_user(supabase, le, lp)
                         if res and res.user:
-                            # 【關鍵修正】不直接寫 Cookie，改為發送訊號給 app.py
+                            # 清除快取的 OAuth URL
+                            st.session_state.google_auth_url = None
                             st.session_state.pending_login_data = {
                                 "email": le,
                                 "access_token": res.session.access_token,
@@ -84,8 +90,27 @@ def render(supabase, cookie_manager, current_cookies):
 
                 st.markdown("""<div style="text-align:center; margin: 15px 0; color:#666; font-size:12px;">- OR -</div>""", unsafe_allow_html=True)
                 
+                # 【關鍵修復】使用原生 HTML 連結，避免 st.link_button 的點擊延遲問題
                 if auth_url:
-                    st.link_button("G 使用 Google 帳號繼續", auth_url, type="primary", use_container_width=True)
+                    st.markdown(f"""
+                    <a href="{auth_url}" target="_self" style="
+                        display: block;
+                        width: 100%;
+                        padding: 12px 20px;
+                        background: linear-gradient(90deg, #4285F4, #34A853);
+                        color: white !important;
+                        text-align: center;
+                        text-decoration: none;
+                        border-radius: 8px;
+                        font-weight: 600;
+                        font-size: 16px;
+                        box-shadow: 0 4px 12px rgba(66, 133, 244, 0.3);
+                        transition: transform 0.2s, box-shadow 0.2s;
+                    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(66,133,244,0.4)';"
+                       onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(66,133,244,0.3)';">
+                        <span style="margin-right: 8px;">G</span> 使用 Google 帳號繼續
+                    </a>
+                    """, unsafe_allow_html=True)
                 else:
                     st.error("Google 登入設定未完成")
 
