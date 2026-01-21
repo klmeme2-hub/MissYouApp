@@ -172,11 +172,59 @@ def load_css():
 
         #MainMenu, footer {visibility: hidden;}
         
-        /* --- 6. 響應式設計 --- */
+        /* --- 6. Tab 分頁樣式 --- */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 8px;
+            background-color: transparent;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 5px;
+        }
+
+        .stTabs [data-baseweb="tab"] {
+            height: 45px;
+            white-space: pre-wrap;
+            background-color: transparent;
+            border-radius: 6px 6px 0 0;
+            gap: 2px;
+            padding: 10px 20px;
+            color: #9ca3af; /* Gray-400 */
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .stTabs [data-baseweb="tab"]:hover {
+            color: #E2E8F0; /* Gray-200 */
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .stTabs [aria-selected="true"] {
+            background: linear-gradient(180deg, rgba(30, 32, 44, 0) 0%, rgba(167, 139, 250, 0.1) 100%);
+            border-bottom: 2px solid #A78BFA;
+            color: #A78BFA !important;
+            font-weight: 700;
+        }
+        
+        /* 移除預設的紅色線條 */
+        .stTabs [data-baseweb="tab-highlight"] {
+            display: none;
+        }
+
+        /* --- 7. 響應式設計 --- */
         @media (max-width: 600px) {
             .status-bar { flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px 16px; }
             .user-info-box { display: none; }
             .tooltip-container .tooltip-text { left: 0; margin-left: 0; }
+            
+            /* Tab 在手機版可捲動 */
+            .stTabs [data-baseweb="tab-list"] {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                padding-bottom: 0px;
+            }
+            .stTabs [data-baseweb="tab"] {
+                padding: 10px 15px;
+                flex-shrink: 0;
+            }
         }
     </style>
     """, unsafe_allow_html=True)

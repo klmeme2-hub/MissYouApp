@@ -35,19 +35,35 @@ def render(supabase, client, question_db):
 
     # --- 右欄：標題文字 ---
     with c_text:
-        # 【關鍵】HTML 字串完全靠左，沒有任何縮排
         title_html = """
-<h1 style="font-size: 38px !important; font-weight: 800; margin: 0 !important; padding: 0 !important; line-height: 1.2 !important; background: linear-gradient(90deg, #FFFFFF, #A78BFA); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+<h1 style="
+    font-size: 42px !important; 
+    font-weight: 800; 
+    margin: 0 !important; 
+    padding: 0 !important; 
+    line-height: 1.2 !important; 
+    background: linear-gradient(90deg, #FFFFFF, #A78BFA, #22D3EE);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -1px;
+">
 聲紋ID刻錄室
 </h1>
-<p style="font-size: 15px !important; color: #B0B0B0 !important; margin: 5px 0 0 0 !important; font-weight: 400; line-height: 1.5 !important;">
+<p style="
+    font-size: 15px !important; 
+    color: #94A3B8 !important; 
+    margin: 8px 0 0 0 !important; 
+    font-weight: 500; 
+    line-height: 1.6 !important;
+    letter-spacing: 0.5px;
+">
 這不僅僅是錄音，這是將你的聲紋數據化，作為你在數位世界唯一的身份識別
 </p>
 """
         st.markdown(title_html, unsafe_allow_html=True)
     
-    # 增加一點底部間距
-    st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
     # ==========================================
     # 2. 控制台 (角色選擇 + 生成按鈕)
@@ -57,18 +73,33 @@ def render(supabase, client, question_db):
     allowed = ["朋友/死黨"]
     if tier != 'basic' or xp >= 20: allowed = list(config.ROLE_MAPPING.keys())
     
-    # 底部對齊
+    # 使用玻璃擬態容器包裹控制區
+    st.markdown("""
+    <div style="
+        background: rgba(30, 32, 44, 0.6);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    ">
+    """, unsafe_allow_html=True)
+    
     c_role, c_btn = st.columns([7, 3], vertical_alignment="bottom")
     
     with c_role:
+        st.markdown("<div style='color:#A78BFA; font-size:14px; font-weight:600; margin-bottom:5px;'>選擇對話/錄製對象</div>", unsafe_allow_html=True)
         disp_role = st.selectbox("選擇對象", allowed, label_visibility="collapsed")
         target_role = config.ROLE_MAPPING[disp_role]
     
     with c_btn:
         if st.button("🎁 生成邀請卡", type="primary", use_container_width=True):
-            token = database.create_share_token(supabase, target_role)
             st.session_state.current_token = token
             st.session_state.show_invite = True
+
+    # 閉合玻璃擬態容器
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # ==========================================
     # 3. 狀態列 (放在控制台下方)
