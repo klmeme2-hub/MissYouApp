@@ -30,23 +30,65 @@ def render(supabase, cookie_manager, current_cookies):
         if not logo_html: logo_html = '<span style="font-size: 50px;">♾️</span>'
 
         html_content = f"""
+<style>
+    @keyframes pulse-glow {{
+        0%, 100% {{ box-shadow: 0 0 30px rgba(167, 139, 250, 0.3), 0 0 60px rgba(34, 211, 238, 0.1); }}
+        50% {{ box-shadow: 0 0 50px rgba(167, 139, 250, 0.5), 0 0 80px rgba(34, 211, 238, 0.2); }}
+    }}
+    @keyframes float {{
+        0%, 100% {{ transform: translateY(0px); }}
+        50% {{ transform: translateY(-8px); }}
+    }}
+</style>
 <div style="padding-top: 40px; padding-right: 20px;">
     <div style="display: flex; gap: 25px; align-items: center; margin-bottom: 30px;">
-        <div style="background: white; width: 110px; height: 110px; border-radius: 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 30px rgba(167, 139, 250, 0.2); flex-shrink: 0;">
+        <div style="
+            background: linear-gradient(135deg, #ffffff, #f0f0f5); 
+            width: 120px; 
+            height: 120px; 
+            border-radius: 28px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            animation: pulse-glow 3s ease-in-out infinite, float 4s ease-in-out infinite;
+            flex-shrink: 0;
+        ">
             {logo_html}
         </div>
         <div style="display: flex; flex-direction: column; justify-content: center;">
-            <h3 style="color: #FFFFFF !important; font-size: 32px !important; font-weight: 700; margin: 0; line-height: 1.2; letter-spacing: 1px;">
+            <h3 style="
+                background: linear-gradient(90deg, #FFFFFF, #A78BFA, #22D3EE);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                font-size: 34px !important; 
+                font-weight: 800; 
+                margin: 0; 
+                line-height: 1.2; 
+                letter-spacing: 1px;
+            ">
                 複刻你的數位聲紋
             </h3>
-            <p style="font-family: 'Courier New', monospace; color: #A78BFA; font-weight: 600; font-size: 16px; margin-top: 8px; letter-spacing: 1px;">
+            <p style="font-family: 'Courier New', monospace; color: #A78BFA; font-weight: 600; font-size: 16px; margin-top: 10px; letter-spacing: 2px;">
                 Voice remains, Soul echoes.
             </p>
         </div>
     </div>
-    <div style="font-size: 18px; line-height: 2.0; color: #E2E8F0; font-weight: 300; background: rgba(255, 255, 255, 0.03); padding: 30px; border-radius: 16px; border-left: 4px solid #A78BFA;">
-        <p>EchoSoul 利用最新的 AI 技術，為您鎸刻聲紋，將這份溫暖永久保存在元宇宙中。</p>
-        <p style="margin-top: 15px;">無論距離多遠，無論時間多久，只要點開，我就在。</p>
+    <div style="
+        font-size: 18px; 
+        line-height: 2.0; 
+        color: #E2E8F0; 
+        font-weight: 300; 
+        background: linear-gradient(135deg, rgba(167, 139, 250, 0.08), rgba(34, 211, 238, 0.05));
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        padding: 30px; 
+        border-radius: 20px; 
+        border: 1px solid rgba(167, 139, 250, 0.2);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    ">
+        <p style="margin: 0;">EchoSoul 利用最新的 AI 技術，為您鎸刻聲紋，將這份溫暖永久保存在元宇宙中。</p>
+        <p style="margin-top: 15px; margin-bottom: 0;">無論距離多遠，無論時間多久，只要點開，<span style="color: #A78BFA; font-weight: 600;">我就在</span>。</p>
     </div>
 </div>
 """
@@ -116,8 +158,8 @@ def render(supabase, cookie_manager, current_cookies):
                 <div style="margin-top: 20px; font-family: monospace; color: #555;">
                 © 2026 EchoSoul. All rights reserved.
                 </div>
-                <div style="margin-top: 10px; font-family: monospace; color: #FF4B4B; font-size: 14px; font-weight: bold;">
-                版本號: v2-fix403
+                <div style="margin-top: 10px; font-family: monospace; color: #A78BFA; font-size: 14px; font-weight: bold;">
+                版本號: v3-ui-upgrade
                 </div>
             </div>
             """, unsafe_allow_html=True)
