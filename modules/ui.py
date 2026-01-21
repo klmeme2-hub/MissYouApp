@@ -245,16 +245,26 @@ def render_status_bar(tier, energy, xp, engine_type, similarity=0, sim_hint="", 
     right_items.append(energy_html)
 
     if not is_guest:
+        # 將相似度移到左側 (等級名稱旁)
         tooltip = f"下一步：{sim_hint} (+{sim_gain}%)" if sim_gain > 0 else "已達目前等級上限"
-        sim_part = f"""<div class="tooltip-container" style="margin-left:15px;"><span style="color:#BBB">相似度 <span class="sim-score">{similarity}%</span></span><span class="tooltip-text">{tooltip}</span></div>"""
+        sim_part = f"""
+        <span class="tooltip-container" style="margin-left: 15px; font-size: 14px; font-weight: normal;">
+            <span style="color:#BBB">相似度 <span class="sim-score">{similarity}%</span></span>
+            <span class="tooltip-text">{tooltip}</span>
+        </span>
+        """
+        left_content += sim_part
+
+        # 右側只保留 XP 和 電量
         xp_part = f"""<span style="margin-left:15px;">⭐ XP: <span style="color:#FFD700; font-weight:bold;">{xp}</span></span>"""
-        right_items.append(sim_part)
         right_items.append(xp_part)
+        
+        # 引擎名稱
         engine_html = f"""<span style="margin-left:15px; color:#888; border-left:1px solid #444; padding-left:10px;">| {engine_name}</span>"""
         right_items.append(engine_html)
 
     right_content = "".join(right_items)
-    html = f"""<div class="status-bar"><div class="status-left">{left_content}</div><div class="status-right">{right_content}</div></div>"""
+    html = f"""<div class="status-bar"><div class="status-left" style="display:flex; align-items:center;">{left_content}</div><div class="status-right">{right_content}</div></div>"""
     st.markdown(html, unsafe_allow_html=True)
 
 def render_question_card(question, index, total, hint=""):

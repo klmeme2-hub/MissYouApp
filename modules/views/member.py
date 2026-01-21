@@ -61,9 +61,11 @@ def render(supabase, client, question_db):
 這不僅僅是錄音，這是將你的聲紋數據化，作為你在數位世界唯一的身份識別
 </p>
 """
-        st.markdown(title_html, unsafe_allow_html=True)
+    st.markdown(title_html, unsafe_allow_html=True)
     
-    st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
+    # 增加間距
+    st.write("")
+    st.write("")
 
     # ==========================================
     # 2. 控制台 (角色選擇 + 生成按鈕)
