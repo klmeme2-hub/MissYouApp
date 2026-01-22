@@ -22,12 +22,7 @@ def render(supabase, cookie_manager, current_cookies):
     
     # --- 左側：品牌形象區 ---
     with col1:
-        logo_html = ""
-        if os.path.exists("logo.png"):
-            img_b64 = get_base64_encoded_image("logo.png")
-            if img_b64:
-                logo_html = f'<img src="data:image/png;base64,{img_b64}" style="width: 80%; height: auto; object-fit: contain;">'
-        if not logo_html: logo_html = '<span style="font-size: 50px;">♾️</span>'
+        # 直接顯示文字，不顯示 Logo
 
         html_content = f"""
 <style>
@@ -53,7 +48,7 @@ def render(supabase, cookie_manager, current_cookies):
             animation: pulse-glow 3s ease-in-out infinite, float 4s ease-in-out infinite;
             flex-shrink: 0;
         ">
-            {logo_html}
+            <!-- No Logo -->
         </div>
         <div style="display: flex; flex-direction: column; justify-content: center;">
             <h3 style="

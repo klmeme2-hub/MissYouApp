@@ -1,15 +1,6 @@
 import streamlit as st
-import base64
-import os
 from modules import ui, database, audio, config, gamification
 from modules.tabs import tab_voice, tab_store, tab_persona, tab_memory
-
-def get_base64_encoded_image(image_path):
-    """將圖片轉為 Base64"""
-    try:
-        with open(image_path, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode('utf-8')
-    except: return None
 
 def render(supabase, client, question_db):
     profile = database.get_user_profile(supabase)
@@ -19,23 +10,10 @@ def render(supabase, client, question_db):
     user_id = st.session_state.user.user.id
     
     # ==========================================
-    # 1. Header (Logo + 標題) - 分欄版
+    # 1. Header (僅標題)
     # ==========================================
     
-    # 15% 放 Logo，85% 放文字，垂直置中對齊
-    c_logo, c_text = st.columns([1.5, 8.5], vertical_alignment="center")
-    
-    # --- 左欄：Logo ---
-    with c_logo:
-        if os.path.exists("logo.png"):
-            # 直接使用 st.image，簡單又不會錯
-            st.image("logo.png", use_container_width=True)
-        else:
-            st.markdown("<div style='font-size:50px; text-align:center;'>♾️</div>", unsafe_allow_html=True)
-
-    # --- 右欄：標題文字 ---
-    with c_text:
-        title_html = """
+    title_html = """
 <h1 style="
     font-size: 42px !important; 
     font-weight: 800; 
@@ -62,10 +40,6 @@ def render(supabase, client, question_db):
 </p>
 """
     st.markdown(title_html, unsafe_allow_html=True)
-    
-    # 增加間距
-    st.write("")
-    st.write("")
 
     # ==========================================
     # 2. 控制台 (角色選擇 + 生成按鈕)
