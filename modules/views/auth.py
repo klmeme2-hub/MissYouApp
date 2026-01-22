@@ -154,7 +154,7 @@ def render(supabase, cookie_manager, current_cookies):
                 © 2026 EchoSoul. All rights reserved.
                 </div>
                 <div style="margin-top: 10px; font-family: monospace; color: #A78BFA; font-size: 14px; font-weight: bold;">
-                版本號: v3.1.2-ui-hotfix
+                版本號: v3.1.3-layout-fix
                 </div>
             </div>
             """, unsafe_allow_html=True)
