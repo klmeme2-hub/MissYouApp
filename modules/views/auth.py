@@ -22,7 +22,12 @@ def render(supabase, cookie_manager, current_cookies):
     
     # --- 左側：品牌形象區 ---
     with col1:
-        # 直接顯示文字，不顯示 Logo
+        logo_html = ""
+        if os.path.exists("logo.png"):
+            img_b64 = get_base64_encoded_image("logo.png")
+            if img_b64:
+                logo_html = f'<img src="data:image/png;base64,{img_b64}" style="width: 80%; height: auto; object-fit: contain;">'
+        if not logo_html: logo_html = '<span style="font-size: 50px;">♾️</span>'
 
         html_content = f"""
 <style>
@@ -48,7 +53,7 @@ def render(supabase, cookie_manager, current_cookies):
             animation: pulse-glow 3s ease-in-out infinite, float 4s ease-in-out infinite;
             flex-shrink: 0;
         ">
-            <!-- No Logo -->
+            {logo_html}
         </div>
         <div style="display: flex; flex-direction: column; justify-content: center;">
             <h3 style="
@@ -154,7 +159,7 @@ def render(supabase, cookie_manager, current_cookies):
                 © 2026 EchoSoul. All rights reserved.
                 </div>
                 <div style="margin-top: 10px; font-family: monospace; color: #A78BFA; font-size: 14px; font-weight: bold;">
-                版本號: v3.1.3-layout-fix
+                版本號: v3.1.4-logo-restore
                 </div>
             </div>
             """, unsafe_allow_html=True)
