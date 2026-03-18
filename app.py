@@ -33,7 +33,7 @@ if "pending_login_data" in st.session_state:
     })
     
     # 只呼叫一次 set，避免 Duplicate Key
-    cookie_manager.set("echosoul_session", cookie_value, expires_at=expires)
+    cookie_manager.set("echosoul_session", cookie_value, expires_at=expires, key="set_login_session", secure=True, same_site="none")
     
     del st.session_state["pending_login_data"]
     time.sleep(1) # 給瀏覽器一點時間
@@ -42,7 +42,7 @@ if "pending_login_data" in st.session_state:
 # 4. 處理登出
 if st.session_state.get("logout_clicked"):
     # 只需刪除一個 Cookie
-    cookie_manager.delete("echosoul_session")
+    cookie_manager.delete("echosoul_session", key="del_login_session")
     del st.session_state["logout_clicked"]
     
     # 重新獲取 client
@@ -118,7 +118,7 @@ if "friend_stage" not in st.session_state: st.session_state.friend_stage = "list
 if "code" in st.query_params:
     code = st.query_params["code"]
     
-    # 防止重複處理同一個 code
+    # 防止重複處理同一個 code（避免 token already consumed 錯誤）
     if st.session_state.get("last_processed_code") == code:
         st.query_params.clear()
         st.rerun()
@@ -134,7 +134,7 @@ if "code" in st.query_params:
                 st.session_state.user = res
                 database.get_user_profile(supabase, res.user.id)
                 
-                # 設定 Flag，讓上方邏輯去寫入 Cookie
+                # 【關鍵】設定 Flag，讓上方邏輯去寫入 Cookie
                 st.session_state.pending_login_data = {
                     "email": res.user.email,
                     "access_token": res.session.access_token,
@@ -145,7 +145,6 @@ if "code" in st.query_params:
                 st.query_params.clear()
                 st.rerun()
             else:
-                # res 存在但沒有 user（不應發生）
                 st.error("❌ 登入回應異常，請重試")
                 st.query_params.clear()
                 
